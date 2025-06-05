@@ -10,9 +10,13 @@ import {
   X,
   Home,
   Shield,
-  Palette
+  Palette,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -34,6 +38,8 @@ const navigationItems = [
 
 export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, logout } = useAuth();
+  const { toast } = useToast();
 
   // Get current site name from localStorage or use default
   const getSiteName = () => {
@@ -67,6 +73,14 @@ export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) 
       window.removeEventListener('siteConfigUpdated', handleSiteConfigUpdate);
     };
   });
+
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: "Logged out successfully",
+      description: "You have been logged out of your account.",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-neomorphism-background flex">
@@ -117,19 +131,31 @@ export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) 
           {/* User Profile */}
           <div className="mt-auto pt-4 border-t border-gray-200">
             <div className={cn(
-              "flex items-center gap-3 p-3 rounded-xl",
+              "flex items-center gap-3 p-3 rounded-xl mb-2",
               !sidebarOpen && "justify-center"
             )}>
               <div className="w-8 h-8 bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                AD
+                {user?.name?.charAt(0) || 'U'}
               </div>
               {sidebarOpen && (
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Admin User</p>
-                  <p className="text-xs text-gray-500">admin@inlinecrm.com</p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">{user?.name}</p>
+                  <p className="text-xs text-gray-500">{user?.email}</p>
+                  <p className="text-xs text-neomorphism-violet font-medium">{user?.role}</p>
                 </div>
               )}
             </div>
+            {sidebarOpen && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                Logout
+              </Button>
+            )}
           </div>
         </div>
       </div>
