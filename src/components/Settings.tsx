@@ -12,7 +12,7 @@ import {
   Trash2,
   Save,
   AlertTriangle,
-  Toggle
+  ToggleLeft
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -703,7 +703,7 @@ export function Settings() {
 
             <TabsContent value="system" className="space-y-6 mt-6">
               <Alert>
-                <Toggle className="h-4 w-4" />
+                <ToggleLeft className="h-4 w-4" />
                 <AlertDescription>
                   System-level settings that affect the entire application behavior.
                 </AlertDescription>
