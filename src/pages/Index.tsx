@@ -5,6 +5,11 @@ import { Dashboard } from '@/components/Dashboard';
 import { LeadManagement } from '@/components/LeadManagement';
 import { OpportunityPipeline } from '@/components/OpportunityPipeline';
 import { UserManagement } from '@/components/UserManagement';
+import { StaffManagement } from '@/components/StaffManagement';
+import { UserRoles } from '@/components/UserRoles';
+import { Analytics } from '@/components/Analytics';
+import { SiteCustomizer } from '@/components/SiteCustomizer';
+import { Settings } from '@/components/Settings';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,40 +25,15 @@ const Index = () => {
       case 'users':
         return <UserManagement />;
       case 'staff':
-        return (
-          <div className="neomorphism-card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Staff Management</h2>
-            <p className="text-gray-600">Staff management module coming soon...</p>
-          </div>
-        );
+        return <StaffManagement />;
       case 'roles':
-        return (
-          <div className="neomorphism-card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">User Roles Management</h2>
-            <p className="text-gray-600">Role management module coming soon...</p>
-          </div>
-        );
+        return <UserRoles />;
       case 'analytics':
-        return (
-          <div className="neomorphism-card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Analytics</h2>
-            <p className="text-gray-600">Advanced analytics module coming soon...</p>
-          </div>
-        );
+        return <Analytics />;
       case 'customizer':
-        return (
-          <div className="neomorphism-card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Site Customizer</h2>
-            <p className="text-gray-600">Theme customization module coming soon...</p>
-          </div>
-        );
+        return <SiteCustomizer />;
       case 'settings':
-        return (
-          <div className="neomorphism-card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Settings</h2>
-            <p className="text-gray-600">System settings module coming soon...</p>
-          </div>
-        );
+        return <Settings />;
       default:
         return <Dashboard />;
     }
