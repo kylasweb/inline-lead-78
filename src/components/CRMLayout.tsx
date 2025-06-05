@@ -35,6 +35,39 @@ const navigationItems = [
 export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Get current site name from localStorage or use default
+  const getSiteName = () => {
+    const savedConfig = localStorage.getItem('siteConfig');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      return config.branding?.companyName || 'Inline CRM';
+    }
+    return 'Inline CRM';
+  };
+
+  const [siteName, setSiteName] = useState(getSiteName());
+
+  // Listen for storage changes to update site name in real-time
+  useState(() => {
+    const handleStorageChange = () => {
+      setSiteName(getSiteName());
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events for same-tab updates
+    const handleSiteConfigUpdate = () => {
+      setSiteName(getSiteName());
+    };
+    
+    window.addEventListener('siteConfigUpdated', handleSiteConfigUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('siteConfigUpdated', handleSiteConfigUpdate);
+    };
+  });
+
   return (
     <div className="min-h-screen bg-neomorphism-background flex">
       {/* Sidebar */}
@@ -46,7 +79,7 @@ export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) 
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             {sidebarOpen && (
-              <h1 className="text-xl font-bold text-gray-800">TechPulse CRM</h1>
+              <h1 className="text-xl font-bold text-gray-800">{siteName}</h1>
             )}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -93,7 +126,7 @@ export function CRMLayout({ children, activeTab, onTabChange }: CRMLayoutProps) 
               {sidebarOpen && (
                 <div>
                   <p className="text-sm font-medium text-gray-800">Admin User</p>
-                  <p className="text-xs text-gray-500">admin@techpulse.com</p>
+                  <p className="text-xs text-gray-500">admin@inlinecrm.com</p>
                 </div>
               )}
             </div>

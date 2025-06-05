@@ -84,8 +84,8 @@ export function Settings() {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [settings, setSettings] = useState<SystemSettings>({
     general: {
-      siteName: 'TechPulse CRM',
-      siteUrl: 'https://crm.techpulse.com',
+      siteName: 'Inline CRM',
+      siteUrl: 'https://crm.inlinecrm.com',
       timezone: 'America/New_York',
       language: 'en',
       dateFormat: 'MM/DD/YYYY',
@@ -97,7 +97,7 @@ export function Settings() {
       passwordMinLength: 8,
       loginAttempts: 5,
       apiRateLimit: 1000,
-      allowedDomains: ['techpulse.com', 'company.com']
+      allowedDomains: ['inlinecrm.com', 'company.com']
     },
     notifications: {
       emailEnabled: true,
@@ -111,10 +111,10 @@ export function Settings() {
       provider: 'smtp',
       smtpHost: 'smtp.gmail.com',
       smtpPort: 587,
-      smtpUser: 'noreply@techpulse.com',
+      smtpUser: 'noreply@inlinecrm.com',
       smtpPassword: '',
-      fromEmail: 'noreply@techpulse.com',
-      fromName: 'TechPulse CRM'
+      fromEmail: 'noreply@inlinecrm.com',
+      fromName: 'Inline CRM'
     },
     integrations: {
       googleAnalytics: '',
@@ -248,8 +248,8 @@ export function Settings() {
       localStorage.clear();
       setSettings({
         general: {
-          siteName: 'TechPulse CRM',
-          siteUrl: 'https://crm.techpulse.com',
+          siteName: 'Inline CRM',
+          siteUrl: 'https://crm.inlinecrm.com',
           timezone: 'America/New_York',
           language: 'en',
           dateFormat: 'MM/DD/YYYY',
@@ -261,7 +261,7 @@ export function Settings() {
           passwordMinLength: 8,
           loginAttempts: 5,
           apiRateLimit: 1000,
-          allowedDomains: ['techpulse.com', 'company.com']
+          allowedDomains: ['inlinecrm.com', 'company.com']
         },
         notifications: {
           emailEnabled: true,
@@ -275,10 +275,10 @@ export function Settings() {
           provider: 'smtp',
           smtpHost: 'smtp.gmail.com',
           smtpPort: 587,
-          smtpUser: 'noreply@techpulse.com',
+          smtpUser: 'noreply@inlinecrm.com',
           smtpPassword: '',
-          fromEmail: 'noreply@techpulse.com',
-          fromName: 'TechPulse CRM'
+          fromEmail: 'noreply@inlinecrm.com',
+          fromName: 'Inline CRM'
         },
         integrations: {
           googleAnalytics: '',

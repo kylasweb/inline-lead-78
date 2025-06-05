@@ -89,7 +89,7 @@ export function SiteCustomizer() {
     },
     branding: {
       logo: '',
-      companyName: 'TechPulse CRM',
+      companyName: 'Inline CRM',
       tagline: 'Powerful CRM for IT Companies',
       favicon: ''
     },
@@ -146,6 +146,8 @@ export function SiteCustomizer() {
 
   const saveConfig = () => {
     localStorage.setItem('siteConfig', JSON.stringify(config));
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('siteConfigUpdated'));
     toast({ title: 'Success', description: 'Site configuration saved successfully' });
   };
 
@@ -175,7 +177,7 @@ export function SiteCustomizer() {
       },
       branding: {
         logo: '',
-        companyName: 'TechPulse CRM',
+        companyName: 'Inline CRM',
         tagline: 'Powerful CRM for IT Companies',
         favicon: ''
       },
@@ -188,6 +190,8 @@ export function SiteCustomizer() {
     };
     setConfig(defaultConfig);
     localStorage.setItem('siteConfig', JSON.stringify(defaultConfig));
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('siteConfigUpdated'));
     toast({ title: 'Reset Complete', description: 'Configuration reset to defaults' });
   };
 
