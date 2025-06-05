@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Plus, User, Mail, Phone, Building, Shield, Users, Target, CheckCircle } from 'lucide-react';
@@ -206,39 +205,42 @@ export function AddUserForm() {
     <ErrorBoundary>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white neomorphism-button">
+          <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3">
             <Plus className="w-4 h-4 mr-2" />
             Add User
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 border-0 shadow-2xl rounded-2xl">
+          <DialogHeader className="pb-6 border-b border-gray-100 dark:border-gray-800">
+            <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900 dark:text-white">
+              <User className="w-6 h-6 text-blue-500" />
               Create New User - Step {step} of 3
             </DialogTitle>
           </DialogHeader>
           
           {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
+          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 mb-8">
             <div 
-              className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue h-2 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500 shadow-sm"
               style={{ width: `${(step / 3) * 100}%` }}
-            ></div>
+            />
           </div>
 
           {step === 1 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-500" />
+                Basic Information
+              </h3>
               
               {qualifiedLeads.length > 0 && (
-                <div>
-                  <Label htmlFor="leadSource">Import from Qualified Lead (Optional)</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="leadSource" className="text-sm font-medium text-gray-700 dark:text-gray-300">Import from Qualified Lead (Optional)</Label>
                   <Select onValueChange={handleLeadSelection}>
-                    <SelectTrigger className="neomorphism-input">
+                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                       <SelectValue placeholder="Select a qualified lead to import data" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                       {qualifiedLeads.map((lead) => (
                         <SelectItem key={lead.id} value={lead.id.toString()}>
                           <div className="flex items-center gap-2">
@@ -258,48 +260,48 @@ export function AddUserForm() {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name *</Label>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Full Name *</Label>
                   <Input
                     id="name"
                     value={newUser.name || ''}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                    className="neomorphism-input"
+                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
                     placeholder="John Doe"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="email">Email Address *</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">Email Address *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={newUser.email || ''}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="neomorphism-input"
+                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
                     placeholder="john@company.com"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</Label>
                   <Input
                     id="phone"
                     value={newUser.phone || ''}
                     onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                    className="neomorphism-input"
+                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
                     placeholder="+1 (555) 123-4567"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="department">Department</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="department" className="text-sm font-medium text-gray-700 dark:text-gray-300">Department</Label>
                   <Select onValueChange={(value) => setNewUser({ ...newUser, department: value })}>
-                    <SelectTrigger className="neomorphism-input">
+                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                       <SelectItem value="sales">Sales</SelectItem>
                       <SelectItem value="marketing">Marketing</SelectItem>
                       <SelectItem value="support">Support</SelectItem>
@@ -310,24 +312,24 @@ export function AddUserForm() {
                   </Select>
                 </div>
                 
-                <div>
-                  <Label htmlFor="position">Position</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="position" className="text-sm font-medium text-gray-700 dark:text-gray-300">Position</Label>
                   <Input
                     id="position"
                     value={newUser.position || ''}
                     onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
-                    className="neomorphism-input"
+                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
                     placeholder="Software Engineer"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="role">Role *</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-sm font-medium text-gray-700 dark:text-gray-300">Role *</Label>
                   <Select onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
-                    <SelectTrigger className="neomorphism-input">
+                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                       <SelectItem value="admin">Administrator</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="user">User</SelectItem>
@@ -341,7 +343,7 @@ export function AddUserForm() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Permissions & Access</h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Permissions & Access</h3>
               
               <div>
                 <Label>System Permissions</Label>
@@ -416,7 +418,7 @@ export function AddUserForm() {
 
           {step === 3 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Skills & Onboarding</h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Skills & Onboarding</h3>
               
               <div>
                 <Label htmlFor="newSkill">Add Skills</Label>
@@ -482,12 +484,12 @@ export function AddUserForm() {
             </div>
           )}
           
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
             {step > 1 && (
               <Button 
                 onClick={() => setStep(step - 1)} 
                 variant="outline" 
-                className="flex-1 neomorphism-button"
+                className="flex-1 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Back
               </Button>
@@ -495,13 +497,13 @@ export function AddUserForm() {
             <Button 
               onClick={() => setOpen(false)} 
               variant="outline" 
-              className="flex-1 neomorphism-button"
+              className="flex-1 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleSubmit} 
-              className="flex-1 bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white neomorphism-button"
+              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? 'Creating...' : step === 3 ? 'Create User' : 'Next'}

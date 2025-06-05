@@ -63,15 +63,15 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Neomorphism theme colors
+				// Neomorphism theme colors with CSS variable support
 				neomorphism: {
-					background: '#f0f2f5',
-					surface: '#ffffff',
-					violet: '#8b5cf6',
-					blue: '#3b82f6',
-					red: '#ef4444',
-					shadow: 'rgba(163, 177, 198, 0.6)',
-					highlight: 'rgba(255, 255, 255, 0.8)'
+					background: 'var(--neomorphism-background)',
+					surface: 'var(--neomorphism-surface)',
+					violet: 'var(--neomorphism-violet)',
+					blue: 'var(--neomorphism-blue)',
+					red: 'var(--neomorphism-red)',
+					shadow: 'var(--neomorphism-shadow)',
+					highlight: 'var(--neomorphism-highlight)'
 				}
 			},
 			borderRadius: {
@@ -80,10 +80,10 @@ export default {
 				sm: 'calc(var(--radius) - 4px)'
 			},
 			boxShadow: {
-				'neomorphism': '9px 9px 16px rgba(163, 177, 198, 0.6), -9px -9px 16px rgba(255, 255, 255, 0.5)',
-				'neomorphism-inset': 'inset 9px 9px 16px rgba(163, 177, 198, 0.6), inset -9px -9px 16px rgba(255, 255, 255, 0.5)',
-				'neomorphism-sm': '4px 4px 8px rgba(163, 177, 198, 0.6), -4px -4px 8px rgba(255, 255, 255, 0.5)',
-				'neomorphism-lg': '15px 15px 30px rgba(163, 177, 198, 0.6), -15px -15px 30px rgba(255, 255, 255, 0.5)'
+				'neomorphism': '9px 9px 16px var(--neomorphism-shadow), -9px -9px 16px var(--neomorphism-highlight)',
+				'neomorphism-inset': 'inset 9px 9px 16px var(--neomorphism-shadow), inset -9px -9px 16px var(--neomorphism-highlight)',
+				'neomorphism-sm': '4px 4px 8px var(--neomorphism-shadow), -4px -4px 8px var(--neomorphism-highlight)',
+				'neomorphism-lg': '15px 15px 30px var(--neomorphism-shadow), -15px -15px 30px var(--neomorphism-highlight)'
 			},
 			keyframes: {
 				'accordion-down': {

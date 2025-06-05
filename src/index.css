@@ -43,6 +43,15 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Neomorphism theme colors */
+    --neomorphism-background: #f0f2f5;
+    --neomorphism-surface: #ffffff;
+    --neomorphism-violet: #8b5cf6;
+    --neomorphism-blue: #3b82f6;
+    --neomorphism-red: #ef4444;
+    --neomorphism-shadow: rgba(163, 177, 198, 0.6);
+    --neomorphism-highlight: rgba(255, 255, 255, 0.8);
   }
 
   .dark {
@@ -73,6 +82,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -81,6 +91,32 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Dark mode neomorphism */
+    --neomorphism-background: #1f2937;
+    --neomorphism-surface: #374151;
+    --neomorphism-violet: #8b5cf6;
+    --neomorphism-blue: #3b82f6;
+    --neomorphism-red: #ef4444;
+    --neomorphism-shadow: rgba(0, 0, 0, 0.3);
+    --neomorphism-highlight: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Flat 2.0 Theme */
+  .flat-20 {
+    --neomorphism-background: #f8f9fa;
+    --neomorphism-surface: #ffffff;
+    --neomorphism-violet: #6f42c1;
+    --neomorphism-blue: #007bff;
+    --neomorphism-red: #dc3545;
+  }
+
+  .flat-20.dark {
+    --neomorphism-background: #212529;
+    --neomorphism-surface: #343a40;
+    --neomorphism-violet: #6f42c1;
+    --neomorphism-blue: #007bff;
+    --neomorphism-red: #dc3545;
   }
 }
 
@@ -90,13 +126,13 @@
   }
 
   body {
-    @apply bg-neomorphism-background text-foreground font-sans;
+    @apply bg-neomorphism-background text-foreground font-sans transition-colors duration-300;
   }
 }
 
 @layer components {
   .neomorphism-card {
-    @apply bg-neomorphism-surface rounded-2xl shadow-neomorphism;
+    @apply bg-neomorphism-surface rounded-2xl shadow-neomorphism transition-all duration-300;
   }
   
   .neomorphism-button {
@@ -105,5 +141,18 @@
   
   .neomorphism-input {
     @apply bg-neomorphism-surface rounded-xl shadow-neomorphism-inset border-0 focus:shadow-neomorphism-sm transition-all duration-200;
+  }
+
+  /* Flat 2.0 overrides */
+  .flat-20 .neomorphism-card {
+    @apply shadow-none border border-gray-200 dark:border-gray-700;
+  }
+
+  .flat-20 .neomorphism-button {
+    @apply shadow-none border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600;
+  }
+
+  .flat-20 .neomorphism-input {
+    @apply shadow-none border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800;
   }
 }
