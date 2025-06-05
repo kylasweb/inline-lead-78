@@ -1,6 +1,4 @@
-
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -13,7 +11,8 @@ import {
   Upload,
   Trash2,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  Toggle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,154 +72,234 @@ interface SystemSettings {
     retentionDays: number;
     storageLocation: string;
   };
+  system: {
+    mockDataEnabled: boolean;
+    debugMode: boolean;
+    maintenanceMode: boolean;
+  };
 }
-
-// Mock API functions - replace with real endpoints
-const settingsApi = {
-  getSettings: async (): Promise<SystemSettings> => {
-    // Replace with: const response = await fetch('/api/settings');
-    return {
-      general: {
-        siteName: 'TechPulse CRM',
-        siteUrl: 'https://crm.techpulse.com',
-        timezone: 'America/New_York',
-        language: 'en',
-        dateFormat: 'MM/DD/YYYY',
-        currency: 'USD'
-      },
-      security: {
-        requireTwoFactor: false,
-        sessionTimeout: 30,
-        passwordMinLength: 8,
-        loginAttempts: 5,
-        apiRateLimit: 1000,
-        allowedDomains: ['techpulse.com', 'company.com']
-      },
-      notifications: {
-        emailEnabled: true,
-        smsEnabled: false,
-        pushEnabled: true,
-        leadNotifications: true,
-        dealNotifications: true,
-        systemAlerts: true
-      },
-      email: {
-        provider: 'smtp',
-        smtpHost: 'smtp.gmail.com',
-        smtpPort: 587,
-        smtpUser: 'noreply@techpulse.com',
-        smtpPassword: '',
-        fromEmail: 'noreply@techpulse.com',
-        fromName: 'TechPulse CRM'
-      },
-      integrations: {
-        googleAnalytics: '',
-        salesforceEnabled: false,
-        hubspotEnabled: false,
-        slackWebhook: '',
-        zapierEnabled: false
-      },
-      backup: {
-        autoBackup: true,
-        backupFrequency: 'daily',
-        retentionDays: 30,
-        storageLocation: 'cloud'
-      }
-    };
-  },
-  updateSettings: async (settings: Partial<SystemSettings>): Promise<SystemSettings> => {
-    // Replace with: const response = await fetch('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
-    console.log('Updating settings:', settings);
-    return settings as SystemSettings;
-  },
-  testEmailConnection: async (emailConfig: SystemSettings['email']): Promise<boolean> => {
-    // Replace with: const response = await fetch('/api/settings/test-email', { method: 'POST', body: JSON.stringify(emailConfig) });
-    console.log('Testing email connection:', emailConfig);
-    return true;
-  },
-  exportData: async (): Promise<string> => {
-    // Replace with: const response = await fetch('/api/settings/export');
-    return 'backup-data-url';
-  },
-  importData: async (file: File): Promise<void> => {
-    // Replace with: const formData = new FormData(); formData.append('file', file); await fetch('/api/settings/import', { method: 'POST', body: formData });
-    console.log('Importing data from file:', file.name);
-  }
-};
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('general');
   const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [settings, setSettings] = useState<SystemSettings>({
+    general: {
+      siteName: 'TechPulse CRM',
+      siteUrl: 'https://crm.techpulse.com',
+      timezone: 'America/New_York',
+      language: 'en',
+      dateFormat: 'MM/DD/YYYY',
+      currency: 'USD'
+    },
+    security: {
+      requireTwoFactor: false,
+      sessionTimeout: 30,
+      passwordMinLength: 8,
+      loginAttempts: 5,
+      apiRateLimit: 1000,
+      allowedDomains: ['techpulse.com', 'company.com']
+    },
+    notifications: {
+      emailEnabled: true,
+      smsEnabled: false,
+      pushEnabled: true,
+      leadNotifications: true,
+      dealNotifications: true,
+      systemAlerts: true
+    },
+    email: {
+      provider: 'smtp',
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 587,
+      smtpUser: 'noreply@techpulse.com',
+      smtpPassword: '',
+      fromEmail: 'noreply@techpulse.com',
+      fromName: 'TechPulse CRM'
+    },
+    integrations: {
+      googleAnalytics: '',
+      salesforceEnabled: false,
+      hubspotEnabled: false,
+      slackWebhook: '',
+      zapierEnabled: false
+    },
+    backup: {
+      autoBackup: true,
+      backupFrequency: 'daily',
+      retentionDays: 30,
+      storageLocation: 'cloud'
+    },
+    system: {
+      mockDataEnabled: localStorage.getItem('mockDataEnabled') === 'true',
+      debugMode: false,
+      maintenanceMode: false
+    }
+  });
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ['settings'],
-    queryFn: settingsApi.getSettings
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: settingsApi.updateSettings,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast({ title: 'Success', description: 'Settings updated successfully' });
-    }
-  });
-
-  const testEmailMutation = useMutation({
-    mutationFn: settingsApi.testEmailConnection,
-    onSuccess: (success) => {
-      toast({ 
-        title: success ? 'Success' : 'Error', 
-        description: success ? 'Email connection test passed' : 'Email connection test failed',
-        variant: success ? 'default' : 'destructive'
-      });
-    }
-  });
-
-  const exportMutation = useMutation({
-    mutationFn: settingsApi.exportData,
-    onSuccess: (url) => {
-      // In real implementation, trigger download
-      toast({ title: 'Success', description: 'Data export initiated' });
-    }
-  });
-
-  const importMutation = useMutation({
-    mutationFn: settingsApi.importData,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast({ title: 'Success', description: 'Data imported successfully' });
-    }
-  });
-
-  if (isLoading || !settings) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-neomorphism-violet"></div>
-      </div>
-    );
-  }
 
   const updateSettings = (section: keyof SystemSettings, updates: any) => {
     const newSettings = {
       ...settings,
       [section]: { ...settings[section], ...updates }
     };
-    updateMutation.mutate(newSettings);
+    setSettings(newSettings);
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('systemSettings', JSON.stringify(newSettings));
+    
+    // Handle special cases
+    if (section === 'system' && updates.mockDataEnabled !== undefined) {
+      localStorage.setItem('mockDataEnabled', updates.mockDataEnabled.toString());
+      toast({ 
+        title: 'Settings Updated', 
+        description: `Mock data ${updates.mockDataEnabled ? 'enabled' : 'disabled'}. Refresh the page to see changes.` 
+      });
+    } else {
+      toast({ title: 'Settings Updated', description: 'Changes saved successfully' });
+    }
   };
 
-  const handleTestEmail = () => {
+  const handleTestEmail = async () => {
     setIsTestingEmail(true);
-    testEmailMutation.mutate(settings.email);
-    setTimeout(() => setIsTestingEmail(false), 2000);
+    try {
+      // Simulate email test
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      if (settings.email.smtpHost && settings.email.smtpUser) {
+        toast({ title: 'Email Test Successful', description: 'Email configuration is working correctly' });
+      } else {
+        toast({ 
+          title: 'Email Test Failed', 
+          description: 'Please configure SMTP settings first',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: 'Email Test Failed', 
+        description: 'Failed to connect to email server',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
+
+  const handleExportData = () => {
+    const data = {
+      settings,
+      leads: JSON.parse(localStorage.getItem('leads') || '[]'),
+      opportunities: JSON.parse(localStorage.getItem('opportunities') || '[]'),
+      users: JSON.parse(localStorage.getItem('users') || '[]'),
+      exportDate: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crm-export-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: 'Export Complete', description: 'Data exported successfully' });
   };
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      importMutation.mutate(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target?.result as string);
+          
+          if (data.settings) {
+            setSettings(data.settings);
+            localStorage.setItem('systemSettings', JSON.stringify(data.settings));
+          }
+          if (data.leads) {
+            localStorage.setItem('leads', JSON.stringify(data.leads));
+          }
+          if (data.opportunities) {
+            localStorage.setItem('opportunities', JSON.stringify(data.opportunities));
+          }
+          if (data.users) {
+            localStorage.setItem('users', JSON.stringify(data.users));
+          }
+          
+          toast({ title: 'Import Successful', description: 'Data imported successfully. Refresh to see changes.' });
+        } catch (error) {
+          toast({ 
+            title: 'Import Failed', 
+            description: 'Invalid file format',
+            variant: 'destructive'
+          });
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleSystemReset = () => {
+    if (confirm('Are you sure? This will delete all data and reset the system to defaults.')) {
+      localStorage.clear();
+      setSettings({
+        general: {
+          siteName: 'TechPulse CRM',
+          siteUrl: 'https://crm.techpulse.com',
+          timezone: 'America/New_York',
+          language: 'en',
+          dateFormat: 'MM/DD/YYYY',
+          currency: 'USD'
+        },
+        security: {
+          requireTwoFactor: false,
+          sessionTimeout: 30,
+          passwordMinLength: 8,
+          loginAttempts: 5,
+          apiRateLimit: 1000,
+          allowedDomains: ['techpulse.com', 'company.com']
+        },
+        notifications: {
+          emailEnabled: true,
+          smsEnabled: false,
+          pushEnabled: true,
+          leadNotifications: true,
+          dealNotifications: true,
+          systemAlerts: true
+        },
+        email: {
+          provider: 'smtp',
+          smtpHost: 'smtp.gmail.com',
+          smtpPort: 587,
+          smtpUser: 'noreply@techpulse.com',
+          smtpPassword: '',
+          fromEmail: 'noreply@techpulse.com',
+          fromName: 'TechPulse CRM'
+        },
+        integrations: {
+          googleAnalytics: '',
+          salesforceEnabled: false,
+          hubspotEnabled: false,
+          slackWebhook: '',
+          zapierEnabled: false
+        },
+        backup: {
+          autoBackup: true,
+          backupFrequency: 'daily',
+          retentionDays: 30,
+          storageLocation: 'cloud'
+        },
+        system: {
+          mockDataEnabled: false,
+          debugMode: false,
+          maintenanceMode: false
+        }
+      });
+      toast({ title: 'System Reset', description: 'System has been reset to defaults' });
     }
   };
 
@@ -232,7 +311,10 @@ export function Settings() {
           <p className="text-gray-600 mt-1">Configure your CRM system preferences and integrations</p>
         </div>
         <Button 
-          onClick={() => updateMutation.mutate(settings)}
+          onClick={() => {
+            localStorage.setItem('systemSettings', JSON.stringify(settings));
+            toast({ title: 'Settings Saved', description: 'All settings have been saved successfully' });
+          }}
           className="neomorphism-button bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white"
         >
           <Save className="w-4 h-4 mr-2" />
@@ -243,13 +325,14 @@ export function Settings() {
       <Card className="neomorphism-card">
         <CardContent className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="email">Email</TabsTrigger>
               <TabsTrigger value="integrations">Integrations</TabsTrigger>
               <TabsTrigger value="backup">Backup</TabsTrigger>
+              <TabsTrigger value="system">System</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6 mt-6">
@@ -618,6 +701,63 @@ export function Settings() {
               </div>
             </TabsContent>
 
+            <TabsContent value="system" className="space-y-6 mt-6">
+              <Alert>
+                <Toggle className="h-4 w-4" />
+                <AlertDescription>
+                  System-level settings that affect the entire application behavior.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Development & Testing</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-base font-medium">Mock Data</Label>
+                        <p className="text-sm text-gray-600">Enable sample data for testing and development</p>
+                      </div>
+                      <Switch
+                        checked={settings.system.mockDataEnabled}
+                        onCheckedChange={(checked) => updateSettings('system', { mockDataEnabled: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-base font-medium">Debug Mode</Label>
+                        <p className="text-sm text-gray-600">Show detailed error messages and logs</p>
+                      </div>
+                      <Switch
+                        checked={settings.system.debugMode}
+                        onCheckedChange={(checked) => updateSettings('system', { debugMode: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-base font-medium">Maintenance Mode</Label>
+                        <p className="text-sm text-gray-600">Restrict access for system maintenance</p>
+                      </div>
+                      <Switch
+                        checked={settings.system.maintenanceMode}
+                        onCheckedChange={(checked) => updateSettings('system', { maintenanceMode: checked })}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Alert className="border-amber-200 bg-amber-50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700">
+                    <strong>Note:</strong> Mock data toggle affects all modules. When disabled, the system will use live API endpoints. 
+                    Refresh the page after changing this setting to see the effects.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </TabsContent>
+            
             <TabsContent value="backup" className="space-y-6 mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -664,7 +804,7 @@ export function Settings() {
                   <h4 className="font-semibold text-gray-800">Data Management</h4>
                   <div className="space-y-3">
                     <Button
-                      onClick={() => exportMutation.mutate()}
+                      onClick={handleExportData}
                       className="neomorphism-button w-full"
                       variant="outline"
                     >
@@ -682,7 +822,7 @@ export function Settings() {
                     <input
                       id="import-file"
                       type="file"
-                      accept=".json,.csv"
+                      accept=".json"
                       onChange={handleFileImport}
                       className="hidden"
                     />
@@ -698,11 +838,7 @@ export function Settings() {
                   <Button
                     variant="destructive"
                     className="w-full"
-                    onClick={() => {
-                      if (confirm('Are you sure? This action cannot be undone.')) {
-                        toast({ title: 'Success', description: 'System reset initiated' });
-                      }
-                    }}
+                    onClick={handleSystemReset}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Reset System

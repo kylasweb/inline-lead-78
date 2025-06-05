@@ -1,6 +1,5 @@
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { 
   Palette, 
   Layout, 
@@ -62,110 +61,92 @@ interface ThemeConfig {
   };
 }
 
-// Mock API functions - replace with real endpoints
-const customizerApi = {
-  getConfig: async (): Promise<ThemeConfig> => {
-    // Replace with: const response = await fetch('/api/site/customize');
-    return {
-      colors: {
-        primary: '#8b5cf6',
-        secondary: '#3b82f6',
-        accent: '#ef4444',
-        background: '#f0f2f5',
-        surface: '#ffffff',
-        text: '#1f2937'
-      },
-      typography: {
-        fontFamily: 'Inter',
-        fontSize: {
-          base: 14,
-          heading: 24
-        },
-        lineHeight: 1.5
-      },
-      layout: {
-        sidebarWidth: 256,
-        headerHeight: 64,
-        borderRadius: 12,
-        spacing: 16
-      },
-      branding: {
-        logo: '',
-        companyName: 'TechPulse CRM',
-        tagline: 'Powerful CRM for IT Companies',
-        favicon: ''
-      },
-      features: {
-        darkMode: false,
-        animations: true,
-        sidebar: true,
-        breadcrumbs: true
-      }
-    };
-  },
-  updateConfig: async (config: Partial<ThemeConfig>): Promise<ThemeConfig> => {
-    // Replace with: const response = await fetch('/api/site/customize', { method: 'POST', body: JSON.stringify(config) });
-    console.log('Updating config:', config);
-    return config as ThemeConfig;
-  },
-  uploadImage: async (file: File, type: 'logo' | 'favicon'): Promise<string> => {
-    // Replace with: const formData = new FormData(); formData.append('file', file); const response = await fetch('/api/site/upload', { method: 'POST', body: formData });
-    return URL.createObjectURL(file);
-  }
-};
-
 export function SiteCustomizer() {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeTab, setActiveTab] = useState('theme');
-  
+  const [config, setConfig] = useState<ThemeConfig>({
+    colors: {
+      primary: '#8b5cf6',
+      secondary: '#3b82f6',
+      accent: '#ef4444',
+      background: '#f0f2f5',
+      surface: '#ffffff',
+      text: '#1f2937'
+    },
+    typography: {
+      fontFamily: 'Inter',
+      fontSize: {
+        base: 14,
+        heading: 24
+      },
+      lineHeight: 1.5
+    },
+    layout: {
+      sidebarWidth: 256,
+      headerHeight: 64,
+      borderRadius: 12,
+      spacing: 16
+    },
+    branding: {
+      logo: '',
+      companyName: 'TechPulse CRM',
+      tagline: 'Powerful CRM for IT Companies',
+      favicon: ''
+    },
+    features: {
+      darkMode: false,
+      animations: true,
+      sidebar: true,
+      breadcrumbs: true
+    }
+  });
+
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: config, isLoading } = useQuery({
-    queryKey: ['site-config'],
-    queryFn: customizerApi.getConfig
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: customizerApi.updateConfig,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['site-config'] });
-      toast({ title: 'Success', description: 'Site configuration updated successfully' });
+  // Load config from localStorage on mount
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('siteConfig');
+    if (savedConfig) {
+      setConfig(JSON.parse(savedConfig));
     }
-  });
+  }, []);
 
-  const uploadMutation = useMutation({
-    mutationFn: ({ file, type }: { file: File; type: 'logo' | 'favicon' }) => customizerApi.uploadImage(file, type),
-    onSuccess: (url, variables) => {
-      const newConfig = {
-        ...config,
-        branding: {
-          ...config?.branding,
-          [variables.type]: url
-        }
-      };
-      updateMutation.mutate(newConfig);
+  // Apply theme changes to CSS variables in real-time
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--primary', config.colors.primary);
+    root.style.setProperty('--secondary', config.colors.secondary);
+    root.style.setProperty('--accent', config.colors.accent);
+    root.style.setProperty('--background', config.colors.background);
+    root.style.setProperty('--surface', config.colors.surface);
+    root.style.setProperty('--text', config.colors.text);
+    root.style.setProperty('--font-family', config.typography.fontFamily);
+    root.style.setProperty('--font-size-base', `${config.typography.fontSize.base}px`);
+    root.style.setProperty('--font-size-heading', `${config.typography.fontSize.heading}px`);
+    root.style.setProperty('--border-radius', `${config.layout.borderRadius}px`);
+    root.style.setProperty('--spacing', `${config.layout.spacing}px`);
+
+    // Update document title and favicon
+    document.title = config.branding.companyName;
+    if (config.branding.favicon) {
+      let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (!favicon) {
+        favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        document.head.appendChild(favicon);
+      }
+      favicon.href = config.branding.favicon;
     }
-  });
-
-  if (isLoading || !config) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-neomorphism-violet"></div>
-      </div>
-    );
-  }
+  }, [config]);
 
   const updateConfig = (updates: Partial<ThemeConfig>) => {
     const newConfig = { ...config, ...updates };
-    updateMutation.mutate(newConfig);
+    setConfig(newConfig);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
-    const file = event.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate({ file, type });
-    }
+  const saveConfig = () => {
+    localStorage.setItem('siteConfig', JSON.stringify(config));
+    toast({ title: 'Success', description: 'Site configuration saved successfully' });
   };
 
   const resetToDefaults = () => {
@@ -205,7 +186,62 @@ export function SiteCustomizer() {
         breadcrumbs: true
       }
     };
-    updateMutation.mutate(defaultConfig);
+    setConfig(defaultConfig);
+    localStorage.setItem('siteConfig', JSON.stringify(defaultConfig));
+    toast({ title: 'Reset Complete', description: 'Configuration reset to defaults' });
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        updateConfig({
+          branding: {
+            ...config.branding,
+            [type]: dataUrl
+          }
+        });
+        toast({ title: 'Success', description: `${type} uploaded successfully` });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const exportConfig = () => {
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'site-config.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: 'Export Complete', description: 'Configuration exported successfully' });
+  };
+
+  const importConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedConfig = JSON.parse(e.target?.result as string);
+          setConfig(importedConfig);
+          localStorage.setItem('siteConfig', JSON.stringify(importedConfig));
+          toast({ title: 'Import Successful', description: 'Configuration imported successfully' });
+        } catch (error) {
+          toast({ 
+            title: 'Import Failed', 
+            description: 'Invalid configuration file',
+            variant: 'destructive'
+          });
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => (
@@ -270,6 +306,27 @@ export function SiteCustomizer() {
           </div>
           <Button
             variant="outline"
+            onClick={exportConfig}
+            className="neomorphism-button"
+          >
+            Export Config
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => document.getElementById('import-config')?.click()}
+            className="neomorphism-button"
+          >
+            Import Config
+          </Button>
+          <input
+            id="import-config"
+            type="file"
+            accept=".json"
+            onChange={importConfig}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
             onClick={resetToDefaults}
             className="neomorphism-button"
           >
@@ -277,7 +334,7 @@ export function SiteCustomizer() {
             Reset
           </Button>
           <Button
-            onClick={() => updateMutation.mutate(config)}
+            onClick={saveConfig}
             className="neomorphism-button bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white"
           >
             <Save className="w-4 h-4 mr-2" />
