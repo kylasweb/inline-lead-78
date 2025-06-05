@@ -10,6 +10,7 @@ import { UserRoles } from '@/components/UserRoles';
 import { Analytics } from '@/components/Analytics';
 import { SiteCustomizer } from '@/components/SiteCustomizer';
 import { Settings } from '@/components/Settings';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -40,9 +41,13 @@ const Index = () => {
   };
 
   return (
-    <CRMLayout activeTab={activeTab} onTabChange={setActiveTab}>
-      {renderContent()}
-    </CRMLayout>
+    <ErrorBoundary>
+      <CRMLayout activeTab={activeTab} onTabChange={setActiveTab}>
+        <ErrorBoundary>
+          {renderContent()}
+        </ErrorBoundary>
+      </CRMLayout>
+    </ErrorBoundary>
   );
 };
 
