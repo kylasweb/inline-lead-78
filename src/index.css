@@ -1,10 +1,11 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 240 10% 94%;
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -34,20 +35,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
+    --sidebar-background: 240 10% 96%;
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -96,6 +90,20 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-neomorphism-background text-foreground font-sans;
+  }
+}
+
+@layer components {
+  .neomorphism-card {
+    @apply bg-neomorphism-surface rounded-2xl shadow-neomorphism;
+  }
+  
+  .neomorphism-button {
+    @apply bg-neomorphism-surface rounded-xl shadow-neomorphism hover:shadow-neomorphism-sm active:shadow-neomorphism-inset transition-all duration-200;
+  }
+  
+  .neomorphism-input {
+    @apply bg-neomorphism-surface rounded-xl shadow-neomorphism-inset border-0 focus:shadow-neomorphism-sm transition-all duration-200;
   }
 }
