@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Users, Search, Settings as SettingsIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -115,20 +116,24 @@ export function UserManagement() {
   };
 
   const handleToggleStatus = (userId: number) => {
-    const updatedUsers = users.map(user => 
-      user.id === userId 
-        ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' as const }
-        : user
-    );
+    const updatedUsers = users.map(user => {
+      if (user.id === userId) {
+        const newStatus: 'active' | 'inactive' | 'pending' = user.status === 'active' ? 'inactive' : 'active';
+        return { ...user, status: newStatus };
+      }
+      return user;
+    });
     setUsers(updatedUsers);
     
     // Update localStorage
     const savedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const updatedSavedUsers = savedUsers.map((user: User) => 
-      user.id === userId 
-        ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' as const }
-        : user
-    );
+    const updatedSavedUsers = savedUsers.map((user: User) => {
+      if (user.id === userId) {
+        const newStatus: 'active' | 'inactive' | 'pending' = user.status === 'active' ? 'inactive' : 'active';
+        return { ...user, status: newStatus };
+      }
+      return user;
+    });
     localStorage.setItem('users', JSON.stringify(updatedSavedUsers));
   };
 
