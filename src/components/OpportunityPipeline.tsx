@@ -1,16 +1,25 @@
-
-import { useState } from 'react';
-import { 
-  Plus, 
-  DollarSign, 
-  Calendar, 
-  User, 
+import { useState, useEffect } from 'react';
+import {
+  Plus,
+  DollarSign,
+  Calendar,
+  User,
   TrendingUp,
   MoreHorizontal,
   Edit,
-  Trash2
+  Trash2,
+  AlertCircle,
+  Briefcase
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  opportunitiesApi, 
+  shouldUseMockData, 
+  mockOpportunities,
+  transformOpportunitiesToLocalFormat 
+} from '@/lib/api-utils';
+import { ApiOpportunity } from '@/types/api';
 
 interface Opportunity {
   id: number;
@@ -25,56 +34,11 @@ interface Opportunity {
   description: string;
 }
 
-const mockOpportunities: Opportunity[] = [
-  {
-    id: 1,
-    title: 'Cloud Infrastructure Upgrade',
-    company: 'TechCorp Inc.',
-    contact: 'John Martinez',
-    value: 125000,
-    stage: 'proposal',
-    probability: 75,
-    expectedCloseDate: '2024-02-15',
-    lastActivity: '2024-01-15',
-    description: 'Complete cloud migration and infrastructure modernization project'
-  },
-  {
-    id: 2,
-    title: 'Security Audit & Implementation',
-    company: 'DataSystems Ltd.',
-    contact: 'Michael Chen',
-    value: 85000,
-    stage: 'negotiation',
-    probability: 80,
-    expectedCloseDate: '2024-01-30',
-    lastActivity: '2024-01-14',
-    description: 'Comprehensive security assessment and implementation services'
-  },
-  {
-    id: 3,
-    title: 'Digital Transformation Project',
-    company: 'InnovateSoft',
-    contact: 'Sarah Johnson',
-    value: 250000,
-    stage: 'qualified',
-    probability: 40,
-    expectedCloseDate: '2024-03-20',
-    lastActivity: '2024-01-13',
-    description: 'End-to-end digital transformation initiative'
-  },
-  {
-    id: 4,
-    title: 'DevOps Automation Platform',
-    company: 'CloudTech Solutions',
-    contact: 'Emma Wilson',
-    value: 95000,
-    stage: 'proposal',
-    probability: 65,
-    expectedCloseDate: '2024-02-28',
-    lastActivity: '2024-01-12',
-    description: 'Implementation of automated CI/CD pipeline and monitoring'
-  }
-];
+interface OpportunityPipelineState {
+  opportunities: Opportunity[];
+  loading: boolean;
+  error: string | null;
+}
 
 const stageConfig = {
   qualified: { label: 'Qualified', color: 'bg-blue-500', textColor: 'text-blue-700' },
@@ -85,28 +49,76 @@ const stageConfig = {
 };
 
 export function OpportunityPipeline() {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(mockOpportunities);
+  const [state, setState] = useState<OpportunityPipelineState>({
+    opportunities: [],
+    loading: true,
+    error: null
+  });
   const [selectedStage, setSelectedStage] = useState<string>('all');
+
+  useEffect(() => {
+    const fetchOpportunities = async () => {
+      try {
+        setState(prev => ({ ...prev, loading: true, error: null }));
+
+        if (shouldUseMockData()) {
+          // Use mock data
+          const transformedMockData = transformOpportunitiesToLocalFormat(mockOpportunities);
+          setState({
+            opportunities: transformedMockData,
+            loading: false,
+            error: null
+          });
+        } else {
+          // Fetch real data from API
+          const apiOpportunities = await opportunitiesApi.getOpportunities();
+          const transformedData = transformOpportunitiesToLocalFormat(apiOpportunities);
+          setState({
+            opportunities: transformedData,
+            loading: false,
+            error: null
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch opportunities:', error);
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load opportunities. Please try again.'
+        }));
+      }
+    };
+
+    fetchOpportunities();
+  }, []);
 
   const stages = Object.keys(stageConfig) as Array<keyof typeof stageConfig>;
 
   const filteredOpportunities = selectedStage === 'all' 
-    ? opportunities 
-    : opportunities.filter(opp => opp.stage === selectedStage);
+    ? state.opportunities 
+    : state.opportunities.filter(opp => opp.stage === selectedStage);
 
   const getStageOpportunities = (stage: keyof typeof stageConfig) => {
-    return opportunities.filter(opp => opp.stage === stage);
+    return state.opportunities.filter(opp => opp.stage === stage);
   };
 
   const getTotalValue = (stage?: keyof typeof stageConfig) => {
-    const opps = stage ? getStageOpportunities(stage) : opportunities;
+    const opps = stage ? getStageOpportunities(stage) : state.opportunities;
     return opps.reduce((sum, opp) => sum + opp.value, 0);
   };
 
   const getWeightedValue = (stage?: keyof typeof stageConfig) => {
-    const opps = stage ? getStageOpportunities(stage) : opportunities;
+    const opps = stage ? getStageOpportunities(stage) : state.opportunities;
     return opps.reduce((sum, opp) => sum + (opp.value * opp.probability / 100), 0);
   };
+
+  if (state.loading) {
+    return <OpportunityPipelineSkeleton />;
+  }
+
+  if (state.error) {
+    return <OpportunityPipelineError error={state.error} onRetry={() => window.location.reload()} />;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -140,7 +152,7 @@ export function OpportunityPipeline() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 font-medium">Weighted Pipeline</p>
-              <p className="text-3xl font-bold text-gray-800 mt-2">${getWeightedValue().toLocaleString()}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">${Math.round(getWeightedValue()).toLocaleString()}</p>
             </div>
             <div className="p-3 bg-gradient-to-r from-neomorphism-violet to-neomorphism-red rounded-xl">
               <TrendingUp className="w-6 h-6 text-white" />
@@ -152,7 +164,7 @@ export function OpportunityPipeline() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 font-medium">Active Opportunities</p>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{opportunities.length}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{state.opportunities.length}</p>
             </div>
             <div className="p-3 bg-gradient-to-r from-neomorphism-red to-neomorphism-blue rounded-xl">
               <User className="w-6 h-6 text-white" />
@@ -165,7 +177,7 @@ export function OpportunityPipeline() {
             <div>
               <p className="text-sm text-gray-600 font-medium">Avg. Deal Size</p>
               <p className="text-3xl font-bold text-gray-800 mt-2">
-                ${Math.round(getTotalValue() / opportunities.length).toLocaleString()}
+                ${state.opportunities.length > 0 ? Math.round(getTotalValue() / state.opportunities.length).toLocaleString() : '0'}
               </p>
             </div>
             <div className="p-3 bg-gradient-to-r from-neomorphism-blue to-neomorphism-red rounded-xl">
@@ -200,7 +212,7 @@ export function OpportunityPipeline() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Weighted:</span>
-                    <span className="font-medium">${getWeightedValue(stage).toLocaleString()}</span>
+                    <span className="font-medium">${Math.round(getWeightedValue(stage)).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -225,66 +237,168 @@ export function OpportunityPipeline() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredOpportunities.map((opportunity) => (
-            <div key={opportunity.id} className="neomorphism-card p-6 hover:shadow-neomorphism-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-800">{opportunity.title}</h4>
-                  <p className="text-sm text-gray-600">{opportunity.company}</p>
-                </div>
-                <Button variant="ghost" size="sm" className="p-2">
-                  <MoreHorizontal size={16} />
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Value:</span>
-                  <span className="font-semibold text-lg text-gray-800">${opportunity.value.toLocaleString()}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Stage:</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium bg-opacity-20 ${stageConfig[opportunity.stage].color} ${stageConfig[opportunity.stage].textColor}`}>
-                    {stageConfig[opportunity.stage].label}
-                  </span>
+        {filteredOpportunities.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500 mb-4">
+              <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
+              <p>No opportunities found</p>
+              {selectedStage !== 'all' && (
+                <p className="text-sm mt-2">Try selecting a different stage or add new opportunities</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredOpportunities.map((opportunity) => (
+              <div key={opportunity.id} className="neomorphism-card p-6 hover:shadow-neomorphism-lg transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-800">{opportunity.title}</h4>
+                    <p className="text-sm text-gray-600">{opportunity.company}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="p-2">
+                    <MoreHorizontal size={16} />
+                  </Button>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Probability:</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue rounded-full"
-                        style={{ width: `${opportunity.probability}%` }}
-                      />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Value:</span>
+                    <span className="font-semibold text-lg text-gray-800">${opportunity.value.toLocaleString()}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Stage:</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium bg-opacity-20 ${stageConfig[opportunity.stage].color} ${stageConfig[opportunity.stage].textColor}`}>
+                      {stageConfig[opportunity.stage].label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Probability:</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue rounded-full"
+                          style={{ width: `${opportunity.probability}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium">{opportunity.probability}%</span>
                     </div>
-                    <span className="text-sm font-medium">{opportunity.probability}%</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Contact:</span>
+                    <span className="text-sm font-medium text-gray-800">{opportunity.contact}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Expected Close:</span>
+                    <span className="text-sm font-medium text-gray-800">{opportunity.expectedCloseDate}</span>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-600 mb-3">{opportunity.description}</p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 neomorphism-button border-0 text-neomorphism-blue hover:bg-blue-50">
+                        <Edit size={16} className="mr-1" />
+                        Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1 neomorphism-button border-0 text-neomorphism-red hover:bg-red-50">
+                        <Trash2 size={16} className="mr-1" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Contact:</span>
-                  <span className="text-sm font-medium text-gray-800">{opportunity.contact}</span>
+// Loading skeleton component
+function OpportunityPipelineSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header skeleton */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Skeleton className="h-9 w-64 mb-2" />
+          <Skeleton className="h-5 w-80" />
+        </div>
+        <Skeleton className="h-10 w-40" />
+      </div>
+
+      {/* Stats cards skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="neomorphism-card p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <Skeleton className="h-4 w-32 mb-3" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+              <Skeleton className="h-12 w-12 rounded-xl" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pipeline overview skeleton */}
+      <div className="neomorphism-card p-6">
+        <Skeleton className="h-6 w-40 mb-4" />
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="neomorphism-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-3 w-3 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div key={j} className="flex justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-8" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Opportunities list skeleton */}
+      <div className="neomorphism-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="neomorphism-card p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <Skeleton className="h-6 w-48 mb-2" />
+                  <Skeleton className="h-4 w-32" />
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Expected Close:</span>
-                  <span className="text-sm font-medium text-gray-800">{opportunity.expectedCloseDate}</span>
-                </div>
-
+                <Skeleton className="h-8 w-8" />
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <div key={j} className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
                 <div className="pt-3 border-t border-gray-200">
-                  <p className="text-sm text-gray-600 mb-3">{opportunity.description}</p>
+                  <Skeleton className="h-4 w-full mb-3" />
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 neomorphism-button border-0 text-neomorphism-blue hover:bg-blue-50">
-                      <Edit size={16} className="mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1 neomorphism-button border-0 text-neomorphism-red hover:bg-red-50">
-                      <Trash2 size={16} className="mr-1" />
-                      Delete
-                    </Button>
+                    <Skeleton className="h-8 flex-1" />
+                    <Skeleton className="h-8 flex-1" />
                   </div>
                 </div>
               </div>
@@ -292,6 +406,30 @@ export function OpportunityPipeline() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Error component
+interface OpportunityPipelineErrorProps {
+  error: string;
+  onRetry: () => void;
+}
+
+function OpportunityPipelineError({ error, onRetry }: OpportunityPipelineErrorProps) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+      <div className="flex items-center gap-3 text-red-600">
+        <AlertCircle size={24} />
+        <h3 className="text-lg font-semibold">Pipeline Error</h3>
+      </div>
+      <p className="text-gray-600 text-center max-w-md">{error}</p>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white rounded-lg hover:shadow-lg transition-shadow"
+      >
+        Try Again
+      </button>
     </div>
   );
 }
