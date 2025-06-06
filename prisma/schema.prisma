@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  assignedLeads         Lead[]        @relation("AssignedTo")
+  assignedOpportunities Opportunity[] @relation("AssignedTo")
+
+  @@map("users")
+}
+
+model Lead {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  phone      String?
+  company    String?
+  status     String   @default("NEW")
+  assignedTo String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  assignedUser  User?         @relation("AssignedTo", fields: [assignedTo], references: [id])
+  opportunities Opportunity[]
+
+  @@map("leads")
+}
+
+model Opportunity {
+  id         String   @id @default(cuid())
+  title      String
+  amount     Decimal  @db.Decimal(10, 2)
+  stage      String   @default("PROSPECT")
+  leadId     String
+  assignedTo String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  lead         Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedUser User? @relation("AssignedTo", fields: [assignedTo], references: [id])
+
+  @@map("opportunities")
+}
