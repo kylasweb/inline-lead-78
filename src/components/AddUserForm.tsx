@@ -215,7 +215,17 @@ export function AddUserForm() {
       form.setValue('leadSource', selectedLead.id);
       form.setValue('name', selectedLead.name);
       form.setValue('email', selectedLead.email);
-      form.setValue('department', selectedLead.company);
+      // Map company name to valid department enum or use default
+      const departmentMapping: Record<string, 'sales' | 'marketing' | 'support' | 'development' | 'hr' | 'finance'> = {
+        'sales': 'sales',
+        'marketing': 'marketing',
+        'support': 'support',
+        'development': 'development',
+        'hr': 'hr',
+        'finance': 'finance'
+      };
+      const mappedDepartment = departmentMapping[selectedLead.company.toLowerCase()] || 'sales';
+      form.setValue('department', mappedDepartment);
     }
   };
 
@@ -247,13 +257,30 @@ export function AddUserForm() {
           />
           
           {/* Progress tracker */}
-          <FormProgressTracker 
-            currentStep={step} 
+          <FormProgressTracker
+            currentStep={step - 1}
             steps={[
-              { title: 'Basic Info', description: 'Personal & role information' },
-              { title: 'Permissions', description: 'Access & emergency contacts' },
-              { title: 'Skills & Setup', description: 'Skills & onboarding settings' }
+              {
+                id: 'basic-info',
+                title: 'Basic Info',
+                description: 'Personal & role information',
+                fields: ['name', 'email', 'phone', 'department', 'position', 'role', 'leadSource']
+              },
+              {
+                id: 'permissions',
+                title: 'Permissions',
+                description: 'Access & emergency contacts',
+                fields: ['permissions', 'bio', 'emergencyContact']
+              },
+              {
+                id: 'skills-setup',
+                title: 'Skills & Setup',
+                description: 'Skills & onboarding settings',
+                fields: ['skills', 'certifications', 'sendWelcomeEmail', 'requirePasswordChange']
+              }
             ]}
+            errors={form.formState.errors}
+            values={form.watch()}
           />
 
           <form onSubmit={handleSubmit} className="space-y-6">

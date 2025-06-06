@@ -156,7 +156,7 @@ export function useAccessibility<T extends FieldValues = FieldValues>({
         focusManager.focusFirstError();
       }, announceDelay);
     }
-  }, [form?.formState.errors, announceErrors, autoFocusFirstError, announceDelay, errorRegion]);
+  }, [form, announceErrors, autoFocusFirstError, announceDelay, errorRegion]);
   
   // Announcement functions
   const announceError = useCallback((message: string) => {

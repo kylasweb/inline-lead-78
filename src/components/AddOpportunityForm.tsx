@@ -309,13 +309,30 @@ export function AddOpportunityForm() {
           />
           
           {/* Progress tracker */}
-          <FormProgressTracker 
-            currentStep={step} 
+          <FormProgressTracker
+            currentStep={step - 1}
             steps={[
-              { title: 'Basic Info', description: 'Opportunity details' },
-              { title: 'Analysis', description: 'AI insights & patterns' },
-              { title: 'Strategic', description: 'Timeline & next steps' }
+              {
+                id: 'basic-info',
+                title: 'Basic Info',
+                description: 'Opportunity details',
+                fields: ['name', 'value', 'stage', 'assignedTo', 'source', 'description']
+              },
+              {
+                id: 'analysis',
+                title: 'Analysis',
+                description: 'AI insights & patterns',
+                fields: ['aiInsights', 'potentialPatterns', 'behavioralIndicators']
+              },
+              {
+                id: 'strategic',
+                title: 'Strategic',
+                description: 'Timeline & next steps',
+                fields: ['expectedCloseDate', 'probability', 'leadId', 'nextSteps', 'competitorAnalysis']
+              }
             ]}
+            errors={form.formState.errors}
+            values={form.watch()}
           />
 
           <form onSubmit={handleSubmit} className="space-y-6">

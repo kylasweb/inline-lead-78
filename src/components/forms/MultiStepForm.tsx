@@ -128,9 +128,7 @@ const MultiStepForm = React.forwardRef<HTMLDivElement, MultiStepFormProps>(
     const contentStyles = cn(
       "multi-step-form-content",
       {
-        "": variant === 'default',
         "p-6": variant === 'card',
-        "": variant === 'wizard',
       },
       contentClassName
     );

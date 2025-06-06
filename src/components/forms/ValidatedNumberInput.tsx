@@ -83,22 +83,7 @@ const ValidatedNumberInput = React.forwardRef<HTMLInputElement, ValidatedNumberI
     const generatedId = React.useId();
     const inputId = id || generatedId;
 
-    // Initialize internal value
-    React.useEffect(() => {
-      const initialValue = value !== undefined ? value : defaultValue;
-      if (initialValue !== undefined) {
-        setInternalValue(formatDisplayValue(Number(initialValue)));
-      }
-    }, []);
-
-    // Update internal value when external value changes
-    React.useEffect(() => {
-      if (value !== undefined && !isFocused) {
-        setInternalValue(formatDisplayValue(Number(value)));
-      }
-    }, [value, isFocused]);
-
-    // Format number for display
+    // Format number for display - moved before useEffect to fix hoisting issue
     const formatDisplayValue = React.useCallback((num: number): string => {
       if (isNaN(num)) return '';
 
@@ -143,6 +128,21 @@ const ValidatedNumberInput = React.forwardRef<HTMLInputElement, ValidatedNumberI
 
       return formatted;
     }, [format, currency, locale, precision, thousandsSeparator, prefix, suffix]);
+
+    // Initialize internal value
+    React.useEffect(() => {
+      const initialValue = value !== undefined ? value : defaultValue;
+      if (initialValue !== undefined) {
+        setInternalValue(formatDisplayValue(Number(initialValue)));
+      }
+    }, [defaultValue, formatDisplayValue, value]);
+
+    // Update internal value when external value changes
+    React.useEffect(() => {
+      if (value !== undefined && !isFocused) {
+        setInternalValue(formatDisplayValue(Number(value)));
+      }
+    }, [value, isFocused, formatDisplayValue]);
 
     // Parse input value to number
     const parseInputValue = React.useCallback((inputStr: string): number | undefined => {
@@ -224,7 +224,7 @@ const ValidatedNumberInput = React.forwardRef<HTMLInputElement, ValidatedNumberI
       }
       
       // Call original onFocus if provided
-    }, [internalValue, parseInputValue, props]);
+    }, [internalValue, parseInputValue]);
 
     // Handle blur
     const handleBlur = React.useCallback((event: React.FocusEvent<HTMLInputElement>) => {
@@ -246,7 +246,7 @@ const ValidatedNumberInput = React.forwardRef<HTMLInputElement, ValidatedNumberI
       }
       
       // Call original onBlur if provided
-    }, [internalValue, parseInputValue, validateNumber, formatDisplayValue, onBlur, onValidate, isValidating, props]);
+    }, [internalValue, parseInputValue, validateNumber, formatDisplayValue, onBlur, onValidate, isValidating]);
 
     // Clean up timeout on unmount
     React.useEffect(() => {

@@ -1,6 +1,4 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ValidatedInput,
@@ -17,6 +15,7 @@ import {
   useFormAccessibility,
   type FormStep,
 } from '@/components/forms';
+import { useZodForm } from '@/hooks/use-validation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -103,14 +102,10 @@ export function AdvancedFormExample() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Initialize form with validation
-  const form = useForm<LeadFormData>({
-    resolver: zodResolver(leadFormSchema),
-    mode: 'onChange',
-    defaultValues: {
-      hasExistingSystem: false,
-      needsTraining: false,
-      marketingConsent: false,
-    },
+  const form = useZodForm(leadFormSchema, {
+    hasExistingSystem: false,
+    needsTraining: false,
+    marketingConsent: false,
   });
 
   const { control, watch, handleSubmit, formState: { errors } } = form;
@@ -263,13 +258,19 @@ export function AdvancedFormExample() {
                   <ValidatedInput
                     name="firstName"
                     label="First Name"
-                    control={control}
+                    value={form.watch('firstName') || ''}
+                    onChange={(value) => form.setValue('firstName', value)}
+                    onBlur={() => form.trigger('firstName')}
+                    error={form.getFieldError('firstName')}
                     required
                   />
                   <ValidatedInput
                     name="lastName"
                     label="Last Name"
-                    control={control}
+                    value={form.watch('lastName') || ''}
+                    onChange={(value) => form.setValue('lastName', value)}
+                    onBlur={() => form.trigger('lastName')}
+                    error={form.getFieldError('lastName')}
                     required
                   />
                 </div>
@@ -279,14 +280,20 @@ export function AdvancedFormExample() {
                     name="email"
                     label="Email Address"
                     type="email"
-                    control={control}
+                    value={form.watch('email') || ''}
+                    onChange={(value) => form.setValue('email', value)}
+                    onBlur={() => form.trigger('email')}
+                    error={form.getFieldError('email')}
                     required
                   />
                   <ValidatedInput
                     name="phone"
                     label="Phone Number"
                     type="tel"
-                    control={control}
+                    value={form.watch('phone') || ''}
+                    onChange={(value) => form.setValue('phone', value)}
+                    onBlur={() => form.trigger('phone')}
+                    error={form.getFieldError('phone')}
                     placeholder="+1 (555) 123-4567"
                   />
                 </div>
@@ -303,13 +310,19 @@ export function AdvancedFormExample() {
                   <ValidatedInput
                     name="companyName"
                     label="Company Name"
-                    control={control}
+                    value={form.watch('companyName') || ''}
+                    onChange={(value) => form.setValue('companyName', value)}
+                    onBlur={() => form.trigger('companyName')}
+                    error={form.getFieldError('companyName')}
                     required
                   />
                   <ValidatedInput
                     name="jobTitle"
                     label="Job Title"
-                    control={control}
+                    value={form.watch('jobTitle') || ''}
+                    onChange={(value) => form.setValue('jobTitle', value)}
+                    onBlur={() => form.trigger('jobTitle')}
+                    error={form.getFieldError('jobTitle')}
                   />
                 </div>
                 
@@ -317,7 +330,9 @@ export function AdvancedFormExample() {
                   <ValidatedSelect
                     name="companySize"
                     label="Company Size"
-                    control={control}
+                    value={watch('companySize')}
+                    onChange={(value) => form.setValue('companySize', value as any)}
+                    error={form.getFieldError('companySize')}
                     required
                     options={[
                       { value: '1-10', label: '1-10 employees' },
@@ -330,7 +345,10 @@ export function AdvancedFormExample() {
                   <ValidatedInput
                     name="industry"
                     label="Industry"
-                    control={control}
+                    value={form.watch('industry') || ''}
+                    onChange={(value) => form.setValue('industry', value)}
+                    onBlur={() => form.trigger('industry')}
+                    error={form.getFieldError('industry')}
                     required
                   />
                 </div>
@@ -346,7 +364,9 @@ export function AdvancedFormExample() {
                 <ValidatedSelect
                   name="projectType"
                   label="Project Type"
-                  control={control}
+                  value={watch('projectType')}
+                  onChange={(value) => form.setValue('projectType', value as any)}
+                  error={form.getFieldError('projectType')}
                   required
                   options={[
                     { value: 'new-project', label: 'New Project Development' },
@@ -359,7 +379,9 @@ export function AdvancedFormExample() {
                   <ValidatedSelect
                     name="budget"
                     label="Budget Range"
-                    control={control}
+                    value={watch('budget')}
+                    onChange={(value) => form.setValue('budget', value as any)}
+                    error={form.getFieldError('budget')}
                     required
                     options={[
                       { value: 'under-10k', label: 'Under $10,000' },
@@ -371,7 +393,9 @@ export function AdvancedFormExample() {
                   <ValidatedSelect
                     name="timeline"
                     label="Timeline"
-                    control={control}
+                    value={watch('timeline')}
+                    onChange={(value) => form.setValue('timeline', value as any)}
+                    error={form.getFieldError('timeline')}
                     required
                     options={[
                       { value: 'asap', label: 'ASAP' },
@@ -386,7 +410,10 @@ export function AdvancedFormExample() {
                 <ValidatedTextarea
                   name="description"
                   label="Project Description"
-                  control={control}
+                  value={form.watch('description') || ''}
+                  onChange={(value) => form.setValue('description', value)}
+                  onBlur={() => form.trigger('description')}
+                  error={form.getFieldError('description')}
                   required
                   placeholder="Please describe your project requirements, goals, and any specific features you need..."
                   rows={4}
@@ -416,7 +443,10 @@ export function AdvancedFormExample() {
                     <ValidatedTextarea
                       name="existingSystemDetails"
                       label="Existing System Details"
-                      control={control}
+                      value={form.watch('existingSystemDetails') || ''}
+                      onChange={(value) => form.setValue('existingSystemDetails', value)}
+                      onBlur={() => form.trigger('existingSystemDetails')}
+                      error={form.getFieldError('existingSystemDetails')}
                       placeholder="Please describe your existing system, technologies used, and integration requirements..."
                       rows={3}
                     />
@@ -437,7 +467,9 @@ export function AdvancedFormExample() {
                     <ValidatedSelect
                       name="trainingType"
                       label="Training Type"
-                      control={control}
+                      value={watch('trainingType')}
+                      onChange={(value) => form.setValue('trainingType', value as any)}
+                      error={form.getFieldError('trainingType')}
                       options={[
                         { value: 'basic', label: 'Basic Usage Training' },
                         { value: 'advanced', label: 'Advanced Features Training' },
@@ -458,7 +490,9 @@ export function AdvancedFormExample() {
                 <ValidatedSelect
                   name="hearAboutUs"
                   label="How did you hear about us?"
-                  control={control}
+                  value={watch('hearAboutUs')}
+                  onChange={(value) => form.setValue('hearAboutUs', value as any)}
+                  error={form.getFieldError('hearAboutUs')}
                   options={[
                     { value: 'search', label: 'Search Engine' },
                     { value: 'social', label: 'Social Media' },

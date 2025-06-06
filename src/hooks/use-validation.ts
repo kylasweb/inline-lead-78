@@ -296,6 +296,7 @@ export function useAsyncValidation<T>(
         isValidating: false,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asyncValidator, ...dependencies]);
 
   const reset = useCallback(() => {

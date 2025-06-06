@@ -249,7 +249,7 @@ export function useConditionalField(
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [condition, options.delay, options.onShow, options.onHide]);
+  }, [condition, options]);
 
   return {
     isVisible,

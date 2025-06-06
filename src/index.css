@@ -52,6 +52,15 @@
     --neomorphism-red: #ef4444;
     --neomorphism-shadow: rgba(163, 177, 198, 0.6);
     --neomorphism-highlight: rgba(255, 255, 255, 0.8);
+
+    /* Glassmorphism theme colors */
+    --glassmorphism-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --glassmorphism-surface: rgba(255, 255, 255, 0.25);
+    --glassmorphism-surface-solid: rgba(255, 255, 255, 0.9);
+    --glassmorphism-border: rgba(255, 255, 255, 0.18);
+    --glassmorphism-shadow: rgba(31, 38, 135, 0.37);
+    --glassmorphism-text: #ffffff;
+    --glassmorphism-text-muted: rgba(255, 255, 255, 0.7);
   }
 
   .dark {
@@ -100,6 +109,15 @@
     --neomorphism-red: #ef4444;
     --neomorphism-shadow: rgba(0, 0, 0, 0.3);
     --neomorphism-highlight: rgba(255, 255, 255, 0.1);
+
+    /* Dark mode glassmorphism */
+    --glassmorphism-background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    --glassmorphism-surface: rgba(45, 55, 72, 0.25);
+    --glassmorphism-surface-solid: rgba(45, 55, 72, 0.9);
+    --glassmorphism-border: rgba(255, 255, 255, 0.1);
+    --glassmorphism-shadow: rgba(0, 0, 0, 0.5);
+    --glassmorphism-text: #ffffff;
+    --glassmorphism-text-muted: rgba(255, 255, 255, 0.6);
   }
 
   /* Flat 2.0 Theme */
@@ -118,6 +136,39 @@
     --neomorphism-blue: #007bff;
     --neomorphism-red: #dc3545;
   }
+
+  /* Glassmorphism Theme */
+  .glassmorphism {
+    --background: 224 71% 4%;
+    --foreground: 210 20% 98%;
+    --card: transparent;
+    --card-foreground: 210 20% 98%;
+    --popover: rgba(255, 255, 255, 0.25);
+    --popover-foreground: 210 20% 98%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: rgba(255, 255, 255, 0.1);
+    --secondary-foreground: 210 20% 98%;
+    --muted: rgba(255, 255, 255, 0.1);
+    --muted-foreground: 215 20% 65%;
+    --accent: rgba(255, 255, 255, 0.1);
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+    --border: rgba(255, 255, 255, 0.18);
+    --input: rgba(255, 255, 255, 0.1);
+    --ring: 263 70% 50%;
+  }
+
+  .glassmorphism.dark {
+    --glassmorphism-background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    --glassmorphism-surface: rgba(26, 32, 44, 0.3);
+    --glassmorphism-surface-solid: rgba(26, 32, 44, 0.95);
+    --glassmorphism-border: rgba(255, 255, 255, 0.08);
+    --glassmorphism-shadow: rgba(0, 0, 0, 0.6);
+    --glassmorphism-text: #ffffff;
+    --glassmorphism-text-muted: rgba(255, 255, 255, 0.5);
+  }
 }
 
 @layer base {
@@ -126,7 +177,13 @@
   }
 
   body {
-    @apply bg-neomorphism-background text-foreground font-sans transition-colors duration-300;
+    @apply text-foreground font-sans transition-colors duration-300;
+    background: var(--neomorphism-background);
+  }
+
+  /* Glassmorphism body background */
+  .glassmorphism body {
+    background: var(--glassmorphism-background);
   }
 
   /* Enhanced Form Validation Styles */
@@ -315,28 +372,152 @@
 }
 
 @layer components {
+  /* Enhanced Neomorphism with better opacity */
   .neomorphism-card {
-    @apply bg-neomorphism-surface rounded-2xl shadow-neomorphism transition-all duration-300;
+    background: var(--neomorphism-surface);
+    @apply rounded-2xl transition-all duration-300;
+    box-shadow:
+      8px 8px 16px var(--neomorphism-shadow),
+      -8px -8px 16px var(--neomorphism-highlight);
   }
   
   .neomorphism-button {
-    @apply bg-neomorphism-surface rounded-xl shadow-neomorphism hover:shadow-neomorphism-sm active:shadow-neomorphism-inset transition-all duration-200;
+    background: var(--neomorphism-surface);
+    @apply rounded-xl transition-all duration-200;
+    box-shadow:
+      4px 4px 8px var(--neomorphism-shadow),
+      -4px -4px 8px var(--neomorphism-highlight);
+  }
+
+  .neomorphism-button:hover {
+    box-shadow:
+      2px 2px 4px var(--neomorphism-shadow),
+      -2px -2px 4px var(--neomorphism-highlight);
+  }
+
+  .neomorphism-button:active {
+    box-shadow:
+      inset 2px 2px 4px var(--neomorphism-shadow),
+      inset -2px -2px 4px var(--neomorphism-highlight);
   }
   
   .neomorphism-input {
-    @apply bg-neomorphism-surface rounded-xl shadow-neomorphism-inset border-0 focus:shadow-neomorphism-sm transition-all duration-200;
+    background: var(--neomorphism-surface);
+    @apply rounded-xl border-0 transition-all duration-200;
+    box-shadow:
+      inset 2px 2px 4px var(--neomorphism-shadow),
+      inset -2px -2px 4px var(--neomorphism-highlight);
   }
 
-  /* Flat 2.0 overrides */
+  .neomorphism-input:focus {
+    box-shadow:
+      inset 1px 1px 2px var(--neomorphism-shadow),
+      inset -1px -1px 2px var(--neomorphism-highlight),
+      0 0 0 2px var(--neomorphism-blue);
+  }
+
+  /* Glassmorphism components */
+  .glassmorphism-card {
+    background: var(--glassmorphism-surface);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glassmorphism-border);
+    @apply rounded-2xl transition-all duration-300;
+    box-shadow: 0 8px 32px var(--glassmorphism-shadow);
+  }
+
+  .glassmorphism-button {
+    background: var(--glassmorphism-surface);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glassmorphism-border);
+    @apply rounded-xl transition-all duration-200;
+    color: var(--glassmorphism-text);
+  }
+
+  .glassmorphism-button:hover {
+    background: var(--glassmorphism-surface-solid);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .glassmorphism-input {
+    background: var(--glassmorphism-surface);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glassmorphism-border);
+    @apply rounded-xl transition-all duration-200;
+    color: var(--glassmorphism-text);
+  }
+
+  .glassmorphism-input::placeholder {
+    color: var(--glassmorphism-text-muted);
+  }
+
+  .glassmorphism-input:focus {
+    background: var(--glassmorphism-surface-solid);
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+  }
+
+  /* Theme-specific overrides */
   .flat-20 .neomorphism-card {
     @apply shadow-none border border-gray-200 dark:border-gray-700;
+    background: var(--neomorphism-surface);
   }
 
   .flat-20 .neomorphism-button {
     @apply shadow-none border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600;
+    background: var(--neomorphism-surface);
   }
 
   .flat-20 .neomorphism-input {
     @apply shadow-none border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800;
+    background: var(--neomorphism-surface);
+  }
+
+  /* Glassmorphism theme component mappings */
+  .glassmorphism .neomorphism-card {
+    @apply glassmorphism-card;
+  }
+
+  .glassmorphism .neomorphism-button {
+    @apply glassmorphism-button;
+  }
+
+  .glassmorphism .neomorphism-input {
+    @apply glassmorphism-input;
+  }
+
+  /* Form-specific glassmorphism styles */
+  .glassmorphism .form-section {
+    background: var(--glassmorphism-surface);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glassmorphism-border);
+  }
+
+  .glassmorphism .form-progress-tracker {
+    background: var(--glassmorphism-surface);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid var(--glassmorphism-border);
+    @apply rounded-xl p-4;
+  }
+
+  /* Enhanced visibility for forms */
+  .glassmorphism [role="dialog"] {
+    background: var(--glassmorphism-surface-solid) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glassmorphism-border);
+  }
+
+  .glassmorphism .dialog-content {
+    color: var(--glassmorphism-text);
+  }
+
+  .glassmorphism .text-gray-600,
+  .glassmorphism .text-gray-500 {
+    color: var(--glassmorphism-text-muted) !important;
   }
 }
