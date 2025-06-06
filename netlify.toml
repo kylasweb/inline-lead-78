@@ -27,7 +27,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
-  conditions = {Role = [""]})
 
 # Environment variables (will be set in Netlify dashboard)
 # DATABASE_URL - PostgreSQL connection string
