@@ -42,7 +42,11 @@ const userApi = {
     
     // Validate lead source if provided
     if (user.leadSource) {
-      const leads = JSON.parse(localStorage.getItem('leads') || '[]');
+      const response = await fetch('/netlify/functions/leads');
+      if (!response.ok) {
+        throw new Error('Failed to validate lead source');
+      }
+      const leads = await response.json();
       const sourceLead = leads.find((l: Lead) => l.id === user.leadSource);
       if (!sourceLead) {
         throw new Error('Invalid lead source selected');
@@ -52,44 +56,80 @@ const userApi = {
       }
     }
 
-    const newUser = {
-      id: Date.now(),
-      status: 'pending' as const,
-      permissions: ['read'],
-      onboardingCompleted: false,
-      skills: [],
-      certifications: [],
-      sendWelcomeEmail: true,
-      requirePasswordChange: true,
-      ...user
+    // Prepare user data for API
+    const userData = {
+      name: user.name,
+      email: user.email,
+      role: user.role || 'USER'
     };
     
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
+    const response = await fetch('/netlify/functions/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create user');
+    }
+
+    const createdUser = await response.json();
     
     // If created from lead, update lead status
     if (user.leadSource) {
-      const leads = JSON.parse(localStorage.getItem('leads') || '[]');
-      const updatedLeads = leads.map((lead: Lead) => 
-        lead.id === user.leadSource 
-          ? { ...lead, status: 'converted', convertedToUserId: newUser.id }
-          : lead
-      );
-      localStorage.setItem('leads', JSON.stringify(updatedLeads));
+      const leadUpdateResponse = await fetch(`/netlify/functions/leads/${user.leadSource}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'converted',
+          convertedToUserId: createdUser.id
+        })
+      });
+      
+      if (!leadUpdateResponse.ok) {
+        console.warn('Failed to update lead status after user creation');
+      }
     }
     
-    return newUser as UserFormData;
+    return {
+      ...createdUser,
+      // Add client-side only fields that aren't stored in database
+      permissions: user.permissions || ['read'],
+      skills: user.skills || [],
+      certifications: user.certifications || [],
+      onboardingCompleted: false,
+      sendWelcomeEmail: user.sendWelcomeEmail ?? true,
+      requirePasswordChange: user.requirePasswordChange ?? true,
+      status: 'pending' as const,
+      phone: user.phone,
+      department: user.department,
+      position: user.position,
+      bio: user.bio,
+      emergencyContact: user.emergencyContact,
+      leadSource: user.leadSource
+    } as UserFormData;
   }
 };
 
 const leadApi = {
   getQualifiedLeads: async (): Promise<Lead[]> => {
-    const mockData = localStorage.getItem('mockDataEnabled') === 'true';
-    if (!mockData) return [];
-    
-    const leads = JSON.parse(localStorage.getItem('leads') || '[]');
-    return leads.filter((lead: Lead) => lead.status === 'qualified');
+    try {
+      const response = await fetch('/netlify/functions/leads');
+      if (!response.ok) {
+        console.error('Failed to fetch leads');
+        return [];
+      }
+      const leads = await response.json();
+      return leads.filter((lead: Lead) => lead.status === 'qualified');
+    } catch (error) {
+      console.error('Error fetching qualified leads:', error);
+      return [];
+    }
   }
 };
 

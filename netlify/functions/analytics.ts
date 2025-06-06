@@ -20,22 +20,24 @@ export const handler = async (
 ): Promise<HandlerResponse> => {
   logRequest(event, context);
 
+  console.log(`HTTP Method: ${event.httpMethod}`);
   // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return handleCors();
   }
-
+  
+  console.log("Authenticating request...");
   // Basic authentication check
   if (!authenticateRequest(event)) {
     return errorResponse(401, 'Unauthorized');
   }
-
   // Only support GET requests for analytics
   if (event.httpMethod !== 'GET') {
     return errorResponse(405, 'Method not allowed');
   }
 
   try {
+    console.log("Handling analytics request...");
     return await handleGetAnalytics(event);
   } catch (error) {
     console.error('Analytics API error:', error);
@@ -45,8 +47,10 @@ export const handler = async (
 
 // Get analytics data
 const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse> => {
+  console.log("Calling withDatabase...");
   return withDatabase(async () => {
     try {
+      console.log("Fetching analytics data from database...");
       // Get all analytics data in parallel
       const [
         leadsByStatus,

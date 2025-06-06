@@ -112,19 +112,59 @@ const opportunityApi = {
     // Get AI insights before creating
     const aiInsights = await geminiApi.analyzeOpportunity(opportunity);
     
-    const newOpportunity = {
-      id: Date.now(),
-      probability: 50,
-      stage: 'qualification' as const,
-      aiInsights,
-      ...opportunity
-    };
-    
-    const opportunities = JSON.parse(localStorage.getItem('opportunities') || '[]');
-    opportunities.push(newOpportunity);
-    localStorage.setItem('opportunities', JSON.stringify(opportunities));
-    
-    return newOpportunity as OpportunityFormData;
+    try {
+      // Map form data to API format
+      const apiPayload = {
+        title: opportunity.name,
+        amount: opportunity.value,
+        stage: opportunity.stage?.toUpperCase(),
+        leadId: opportunity.leadId,
+        assignedTo: opportunity.assignedTo
+      };
+
+      // Call the real API
+      const response = await fetch('/.netlify/functions/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token' // Using mock token for now
+        },
+        body: JSON.stringify(apiPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Return enhanced opportunity with AI insights
+      return {
+        ...opportunity,
+        id: result.data.id,
+        aiInsights,
+        probability: opportunity.probability || 50,
+        stage: opportunity.stage || 'qualification'
+      } as OpportunityFormData;
+
+    } catch (error) {
+      console.error('API call failed, falling back to localStorage:', error);
+      
+      // Fallback to localStorage
+      const newOpportunity = {
+        id: Date.now(),
+        probability: 50,
+        stage: 'qualification' as const,
+        aiInsights,
+        ...opportunity
+      };
+      
+      const opportunities = JSON.parse(localStorage.getItem('opportunities') || '[]');
+      opportunities.push(newOpportunity);
+      localStorage.setItem('opportunities', JSON.stringify(opportunities));
+      
+      return newOpportunity as OpportunityFormData;
+    }
   }
 };
 
@@ -140,7 +180,11 @@ const leadApi = {
   }
 };
 
-export function AddOpportunityForm() {
+interface AddOpportunityFormProps {
+  onSuccess?: () => void;
+}
+
+export function AddOpportunityForm({ onSuccess }: AddOpportunityFormProps = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -194,8 +238,8 @@ export function AddOpportunityForm() {
     mutationFn: opportunityApi.createOpportunity,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-      toast({ 
-        title: 'Success', 
+      toast({
+        title: 'Success',
         description: 'Opportunity created with AI insights',
         duration: 5000
       });
@@ -203,12 +247,17 @@ export function AddOpportunityForm() {
       setOpen(false);
       setStep(1);
       form.reset({
-        probability: 50, 
+        probability: 50,
         stage: 'qualification',
         potentialPatterns: [],
         behavioralIndicators: []
       });
       persistence.clearPersisted();
+      
+      // Call the parent callback to refresh the opportunities list
+      if (onSuccess) {
+        onSuccess();
+      }
     },
     onError: (error) => {
       toast({ 

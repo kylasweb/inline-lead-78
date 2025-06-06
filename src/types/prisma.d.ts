@@ -29,6 +29,13 @@ declare module '@prisma/client' {
       aggregate(args: any): Promise<any>;
       groupBy(args: any): Promise<any>;
     };
+    staff: {
+      findMany(args?: any): Promise<Staff[]>;
+      findUnique(args: { where: { id?: string; email?: string } }): Promise<Staff | null>;
+      create(args: { data: any }): Promise<Staff>;
+      update(args: { where: { id: string }; data: any }): Promise<Staff>;
+      delete(args: { where: { id: string } }): Promise<Staff>;
+    };
   }
 
   export interface User {
@@ -59,7 +66,6 @@ declare module '@prisma/client' {
     assignedUser?: User;
     opportunities?: Opportunity[];
   }
-
   export interface Opportunity {
     id: string;
     title: string;
@@ -71,6 +77,18 @@ declare module '@prisma/client' {
     updatedAt: Date;
     lead?: Lead;
     assignedUser?: User;
+  }
+  
+  export interface Staff {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    department?: string;
+    phone?: string;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
   }
 
   export const PrismaClient: new (options?: any) => PrismaClient;

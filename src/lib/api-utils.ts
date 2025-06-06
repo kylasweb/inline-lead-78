@@ -11,6 +11,7 @@ const API_BASE = '/.netlify/functions';
 // Generic API request function
 async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
+  console.log(`API Request URL: ${url}`);
   
   try {
     const response = await fetch(url, {

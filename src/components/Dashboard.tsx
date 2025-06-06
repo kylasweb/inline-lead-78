@@ -60,7 +60,9 @@ export function Dashboard() {
           });
         } else {
           // Fetch real data from API
+          console.log("Fetching real analytics data...");
           const analytics = await analyticsApi.getAnalytics();
+          console.log("Analytics data fetched:", analytics);
           const { salesData, pipelineData } = transformAnalyticsToChartData(analytics);
           
           setState({

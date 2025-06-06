@@ -83,81 +83,185 @@ interface Opportunity {
   leadId: number;
 }
 
-// Mock API functions - replace with real endpoints
+// Real API functions
 const leadApi = {
   getLeads: async (): Promise<Lead[]> => {
-    const mockData = localStorage.getItem('mockDataEnabled') === 'true';
-    if (!mockData) return [];
-    
-    return [
-      {
-        id: 1,
-        name: 'John Martinez',
-        email: 'john.martinez@techcorp.com',
-        phone: '+1 (555) 123-4567',
-        company: 'TechCorp Inc.',
-        position: 'CTO',
-        location: 'San Francisco, CA',
-        score: 85,
-        status: 'qualified',
-        source: 'Website',
-        lastContact: '2024-01-15',
-        value: 25000,
-        assignedStaff: 'Sarah Wilson',
-        enrichmentData: {
-          companySize: '50-100',
-          industry: 'Software',
-          revenue: '$5M-10M',
-          socialProfiles: ['LinkedIn', 'Twitter'],
-          technologies: ['React', 'Node.js', 'AWS']
-        },
-        nurturingStage: 'consideration',
+    try {
+      const response = await fetch('/netlify/functions/leads');
+      if (!response.ok) {
+        throw new Error('Failed to fetch leads');
+      }
+      const leads = await response.json();
+      
+      // Transform API leads to match our interface (add client-side fields)
+      return leads.map((lead: any) => ({
+        ...lead,
+        id: parseInt(lead.id) || lead.id, // Ensure id is a number
+        score: 0, // Default values for client-side fields
+        source: 'Unknown',
+        location: '',
+        position: '',
+        value: 0,
+        assignedStaff: '',
+        enrichmentData: undefined,
+        nurturingStage: 'awareness' as const,
         conversionTimeline: {
-          createdAt: '2024-01-10',
-          firstContact: '2024-01-11',
-          qualified: '2024-01-13',
+          createdAt: lead.createdAt?.split('T')[0] || '',
+          firstContact: '',
+          qualified: '',
           proposal: '',
           closed: ''
         },
-        activities: [
-          { id: 1, type: 'email', description: 'Initial contact email sent', date: '2024-01-11', staff: 'Sarah Wilson' },
-          { id: 2, type: 'call', description: 'Discovery call completed', date: '2024-01-13', staff: 'Sarah Wilson' }
-        ],
-        opportunityId: 1
-      }
-    ];
+        activities: []
+      }));
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+      return [];
+    }
   },
+  
   createLead: async (lead: Partial<Lead>): Promise<Lead> => {
-    console.log('Creating lead:', lead);
-    return { id: Date.now(), ...lead } as Lead;
+    try {
+      const leadData = {
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        company: lead.company,
+        status: lead.status || 'NEW'
+      };
+      
+      const response = await fetch('/netlify/functions/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(leadData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create lead');
+      }
+
+      const createdLead = await response.json();
+      
+      // Return lead with client-side fields
+      return {
+        ...createdLead,
+        id: parseInt(createdLead.id) || createdLead.id,
+        score: 0,
+        source: lead.source || 'Unknown',
+        location: lead.location || '',
+        position: lead.position || '',
+        value: lead.value || 0,
+        assignedStaff: lead.assignedStaff || '',
+        enrichmentData: lead.enrichmentData,
+        nurturingStage: lead.nurturingStage || 'awareness',
+        conversionTimeline: {
+          createdAt: createdLead.createdAt?.split('T')[0] || '',
+          firstContact: '',
+          qualified: '',
+          proposal: '',
+          closed: ''
+        },
+        activities: []
+      } as Lead;
+    } catch (error) {
+      console.error('Error creating lead:', error);
+      throw error;
+    }
   },
+  
   updateLead: async (id: number, updates: Partial<Lead>): Promise<Lead> => {
-    console.log('Updating lead:', id, updates);
-    return { id, ...updates } as Lead;
+    try {
+      const updateData = {
+        name: updates.name,
+        email: updates.email,
+        phone: updates.phone,
+        company: updates.company,
+        status: updates.status
+      };
+      
+      const response = await fetch(`/netlify/functions/leads/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update lead');
+      }
+
+      const updatedLead = await response.json();
+      
+      return {
+        ...updatedLead,
+        id: parseInt(updatedLead.id) || updatedLead.id,
+        ...updates // Include client-side updates
+      } as Lead;
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      throw error;
+    }
   },
+  
   deleteLead: async (id: number): Promise<void> => {
-    console.log('Deleting lead:', id);
+    try {
+      const response = await fetch(`/netlify/functions/leads/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete lead');
+      }
+    } catch (error) {
+      console.error('Error deleting lead:', error);
+      throw error;
+    }
   },
+  
+  // These are client-side only operations for now
   enrichLead: async (id: number): Promise<Lead> => {
     console.log('Enriching lead:', id);
+    // This would typically call an external enrichment service
     return {} as Lead;
   },
+  
   assignStaff: async (leadId: number, staffId: string): Promise<void> => {
     console.log('Assigning staff:', leadId, staffId);
+    // This could update the lead with assigned staff info
   },
+  
   addActivity: async (leadId: number, activity: Partial<Lead['activities'][0]>): Promise<void> => {
     console.log('Adding activity:', leadId, activity);
+    // This would typically be stored in a separate activities table
   }
 };
 
 const opportunityApi = {
   getOpportunities: async (): Promise<Opportunity[]> => {
-    const mockData = localStorage.getItem('mockDataEnabled') === 'true';
-    if (!mockData) return [];
-    
-    return [
-      { id: 1, name: 'TechCorp CRM Implementation', value: 25000, stage: 'Proposal', leadId: 1 }
-    ];
+    try {
+      const response = await fetch('/netlify/functions/opportunities');
+      if (!response.ok) {
+        throw new Error('Failed to fetch opportunities');
+      }
+      const opportunities = await response.json();
+      
+      return opportunities.map((opp: any) => ({
+        id: parseInt(opp.id) || opp.id,
+        name: opp.title, // API uses 'title', UI expects 'name'
+        value: parseFloat(opp.amount) || 0,
+        stage: opp.stage,
+        leadId: parseInt(opp.leadId) || opp.leadId
+      }));
+    } catch (error) {
+      console.error('Error fetching opportunities:', error);
+      return [];
+    }
   }
 };
 

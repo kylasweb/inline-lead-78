@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -15,7 +14,9 @@
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "build:functions": "netlify functions:build netlify/functions",
+    "build": "vite build && npm run build:functions"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

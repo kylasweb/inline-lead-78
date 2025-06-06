@@ -9,17 +9,22 @@ import {
   Edit,
   Trash2,
   AlertCircle,
-  Briefcase
+  Briefcase,
+  Settings,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  opportunitiesApi, 
-  shouldUseMockData, 
+import { Badge } from '@/components/ui/badge';
+import {
+  opportunitiesApi,
+  shouldUseMockData,
   mockOpportunities,
-  transformOpportunitiesToLocalFormat 
+  transformOpportunitiesToLocalFormat
 } from '@/lib/api-utils';
 import { ApiOpportunity } from '@/types/api';
+import { AddOpportunityForm } from './AddOpportunityForm';
+import { AddOpportunityFormAdvanced } from './AddOpportunityFormAdvanced';
 
 interface Opportunity {
   id: number;
@@ -55,12 +60,14 @@ export function OpportunityPipeline() {
     error: null
   });
   const [selectedStage, setSelectedStage] = useState<string>('all');
+  const [isAdvancedMode, setIsAdvancedMode] = useState<boolean>(false);
+  const [showFormSelector, setShowFormSelector] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchOpportunities = async () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }));
-
+  
         if (shouldUseMockData()) {
           // Use mock data
           const transformedMockData = transformOpportunitiesToLocalFormat(mockOpportunities);
@@ -71,7 +78,9 @@ export function OpportunityPipeline() {
           });
         } else {
           // Fetch real data from API
+          console.log("Fetching real opportunities data...");
           const apiOpportunities = await opportunitiesApi.getOpportunities();
+          console.log("Opportunities data fetched:", apiOpportunities);
           const transformedData = transformOpportunitiesToLocalFormat(apiOpportunities);
           setState({
             opportunities: transformedData,
@@ -88,9 +97,34 @@ export function OpportunityPipeline() {
         }));
       }
     };
-
+  
     fetchOpportunities();
   }, []);
+  
+  // Refresh callback for forms
+  const handleOpportunityCreated = () => {
+    const fetchData = async () => {
+      try {
+        if (shouldUseMockData()) {
+          const transformedMockData = transformOpportunitiesToLocalFormat(mockOpportunities);
+          setState(prev => ({
+            ...prev,
+            opportunities: transformedMockData
+          }));
+        } else {
+          const apiOpportunities = await opportunitiesApi.getOpportunities();
+          const transformedData = transformOpportunitiesToLocalFormat(apiOpportunities);
+          setState(prev => ({
+            ...prev,
+            opportunities: transformedData
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to refresh opportunities:', error);
+      }
+    };
+    fetchData();
+  };
 
   const stages = Object.keys(stageConfig) as Array<keyof typeof stageConfig>;
 
@@ -128,10 +162,65 @@ export function OpportunityPipeline() {
           <h1 className="text-3xl font-bold text-gray-800">Opportunity Pipeline</h1>
           <p className="text-gray-600 mt-1">Track and manage your sales opportunities</p>
         </div>
-        <Button className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue hover:from-neomorphism-blue hover:to-neomorphism-violet text-white px-6 py-2 rounded-xl shadow-neomorphism-sm hover:shadow-neomorphism transition-all duration-200">
-          <Plus size={20} className="mr-2" />
-          Add Opportunity
-        </Button>
+        
+        {/* Advanced Configurator Toggle */}
+        <div className="flex items-center gap-3">
+          {showFormSelector && (
+            <div className="flex items-center gap-2 p-2 neomorphism-card rounded-xl">
+              <span className="text-sm font-medium text-gray-700">Form Mode:</span>
+              <Button
+                variant={!isAdvancedMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsAdvancedMode(false)}
+                className={`text-xs px-3 py-1 rounded-lg transition-all ${
+                  !isAdvancedMode
+                    ? 'bg-neomorphism-blue text-white shadow-neomorphism-sm'
+                    : 'neomorphism-button hover:shadow-neomorphism-sm'
+                }`}
+              >
+                <Zap size={14} className="mr-1" />
+                Basic
+              </Button>
+              <Button
+                variant={isAdvancedMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsAdvancedMode(true)}
+                className={`text-xs px-3 py-1 rounded-lg transition-all ${
+                  isAdvancedMode
+                    ? 'bg-neomorphism-violet text-white shadow-neomorphism-sm'
+                    : 'neomorphism-button hover:shadow-neomorphism-sm'
+                }`}
+              >
+                <Settings size={14} className="mr-1" />
+                Advanced
+              </Button>
+              {isAdvancedMode && (
+                <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-700 animate-pulse">
+                  4-Step Wizard
+                </Badge>
+              )}
+            </div>
+          )}
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFormSelector(!showFormSelector)}
+              className="neomorphism-button border-0 text-gray-600 hover:text-neomorphism-violet transition-colors"
+            >
+              <Settings size={16} className="mr-2" />
+              Advanced Configurator
+            </Button>
+            
+            {/* Dynamic Form Rendering */}
+            {isAdvancedMode ? (
+              <AddOpportunityFormAdvanced key="advanced-form" onSuccess={handleOpportunityCreated} />
+            ) : (
+              <AddOpportunityForm key="basic-form" onSuccess={handleOpportunityCreated} />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Pipeline Stats */}

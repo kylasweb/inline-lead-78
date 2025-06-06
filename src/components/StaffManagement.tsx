@@ -39,52 +39,144 @@ interface Staff {
   location: string;
 }
 
-// Mock API functions - replace with real endpoints
+// Real API functions
 const staffApi = {
   getAll: async (): Promise<Staff[]> => {
-    // Replace with: const response = await fetch('/api/staff');
-    return [
-      {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@company.com',
-        phone: '+1-555-0123',
-        department: 'Engineering',
-        position: 'Senior Developer',
-        hireDate: '2022-01-15',
-        status: 'active',
-        performance: 92,
-        trainingsCompleted: 8,
-        location: 'New York'
-      },
-      {
-        id: '2',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        email: 'jane.smith@company.com',
-        phone: '+1-555-0124',
-        department: 'Sales',
-        position: 'Sales Manager',
-        hireDate: '2021-06-10',
-        status: 'active',
-        performance: 95,
-        trainingsCompleted: 12,
-        location: 'California'
+    try {
+      const response = await fetch('/netlify/functions/staff');
+      if (!response.ok) {
+        throw new Error('Failed to fetch staff');
       }
-    ];
+      const staff = await response.json();
+      
+      // Transform API staff to match our interface
+      return staff.map((member: any) => ({
+        id: member.id,
+        firstName: member.name.split(' ')[0] || '',
+        lastName: member.name.split(' ').slice(1).join(' ') || '',
+        email: member.email,
+        phone: member.phone || '',
+        department: member.department || '',
+        position: member.role || '',
+        hireDate: member.createdAt?.split('T')[0] || '',
+        status: member.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
+        performance: 0, // Default values for client-side fields
+        trainingsCompleted: 0,
+        location: ''
+      }));
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      return [];
+    }
   },
+  
   create: async (data: Omit<Staff, 'id'>): Promise<Staff> => {
-    // Replace with: const response = await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
-    return { ...data, id: Date.now().toString() };
+    try {
+      const staffData = {
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        role: data.position,
+        department: data.department,
+        phone: data.phone,
+        status: data.status.toUpperCase()
+      };
+      
+      const response = await fetch('/netlify/functions/staff', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(staffData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create staff member');
+      }
+
+      const createdStaff = await response.json();
+      
+      return {
+        id: createdStaff.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: createdStaff.email,
+        phone: createdStaff.phone || '',
+        department: createdStaff.department || '',
+        position: createdStaff.role || '',
+        hireDate: createdStaff.createdAt?.split('T')[0] || '',
+        status: data.status,
+        performance: data.performance,
+        trainingsCompleted: data.trainingsCompleted,
+        location: data.location
+      };
+    } catch (error) {
+      console.error('Error creating staff:', error);
+      throw error;
+    }
   },
+  
   update: async (id: string, data: Partial<Staff>): Promise<Staff> => {
-    // Replace with: const response = await fetch(`/api/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-    return { ...data, id } as Staff;
+    try {
+      const updateData: any = {};
+      if (data.firstName || data.lastName) {
+        updateData.name = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      }
+      if (data.email) updateData.email = data.email;
+      if (data.position) updateData.role = data.position;
+      if (data.department) updateData.department = data.department;
+      if (data.phone) updateData.phone = data.phone;
+      if (data.status) updateData.status = data.status.toUpperCase();
+      
+      const response = await fetch(`/netlify/functions/staff/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update staff member');
+      }
+
+      const updatedStaff = await response.json();
+      
+      return {
+        id: updatedStaff.id,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        email: updatedStaff.email,
+        phone: updatedStaff.phone || '',
+        department: updatedStaff.department || '',
+        position: updatedStaff.role || '',
+        hireDate: data.hireDate || '',
+        status: data.status || 'active',
+        performance: data.performance || 0,
+        trainingsCompleted: data.trainingsCompleted || 0,
+        location: data.location || ''
+      };
+    } catch (error) {
+      console.error('Error updating staff:', error);
+      throw error;
+    }
   },
+  
   delete: async (id: string): Promise<void> => {
-    // Replace with: await fetch(`/api/staff/${id}`, { method: 'DELETE' });
-    console.log(`Deleting staff member ${id}`);
+    try {
+      const response = await fetch(`/netlify/functions/staff/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete staff member');
+      }
+    } catch (error) {
+      console.error('Error deleting staff:', error);
+      throw error;
+    }
   }
 };
 

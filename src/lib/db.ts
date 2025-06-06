@@ -92,6 +92,30 @@ export const db = {
     delete: (id: string) => prisma.opportunity.delete({ where: { id } }),
   },
 
+  // Staff operations
+  staff: {
+    findMany: () => prisma.staff.findMany(),
+    findById: (id: string) => prisma.staff.findUnique({ where: { id } }),
+    findByEmail: (email: string) => prisma.staff.findUnique({ where: { email } }),
+    create: (data: {
+      email: string;
+      name: string;
+      role: string;
+      department?: string;
+      phone?: string;
+      status?: string;
+    }) => prisma.staff.create({ data }),
+    update: (id: string, data: {
+      name?: string;
+      email?: string;
+      role?: string;
+      department?: string;
+      phone?: string;
+      status?: string;
+    }) => prisma.staff.update({ where: { id }, data }),
+    delete: (id: string) => prisma.staff.delete({ where: { id } }),
+  },
+
   // Analytics and aggregations
   analytics: {
     getLeadsByStatus: () => prisma.lead.groupBy({
@@ -140,3 +164,4 @@ export async function disconnectDb() {
 export type User = Awaited<ReturnType<typeof db.user.findById>>
 export type Lead = Awaited<ReturnType<typeof db.lead.findById>>
 export type Opportunity = Awaited<ReturnType<typeof db.opportunity.findById>>
+export type Staff = Awaited<ReturnType<typeof db.staff.findById>>

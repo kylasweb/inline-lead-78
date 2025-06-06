@@ -70,8 +70,17 @@ export const errorResponse = (
   createResponse(statusCode, { success: false, error, message });
 
 // Handle CORS preflight requests
-export const handleCors = (): HandlerResponse =>
-  createResponse(200, { success: true, message: 'CORS preflight' });
+export const handleCors = (): HandlerResponse => {
+  console.log("Handling CORS preflight request...");
+  return {
+    statusCode: 200,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ success: true, message: 'CORS preflight' }),
+  };
+};
 
 // Parse JSON body safely
 export const parseBody = <T = any>(event: HandlerEvent): T | null => {
@@ -137,6 +146,7 @@ export const checkRateLimit = (event: HandlerEvent): boolean => {
 
 // Log request for debugging
 export const logRequest = (event: HandlerEvent, context: HandlerContext): void => {
+  console.log("Logging request...");
   // Log for debugging (will work in Netlify Functions environment)
   console.log(`${event.httpMethod} ${event.path}`, {
     headers: event.headers,

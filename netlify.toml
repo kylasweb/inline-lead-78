@@ -14,7 +14,7 @@
   # TypeScript support
   node_bundler = "esbuild"
   # Include source maps for debugging
-  included_files = ["src/**/*"]
+  included_files = ["src/**/*", "netlify/functions/**/*"]
 
 # Redirect all API requests to functions
 [[redirects]]

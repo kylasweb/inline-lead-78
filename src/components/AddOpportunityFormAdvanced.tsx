@@ -33,6 +33,8 @@ interface Opportunity {
   tags: string[];
   notes: string;
   competitorAnalysis: string;
+  leadId?: number;
+  assignedTo?: string;
   budget: {
     min: number;
     max: number;
@@ -47,34 +49,87 @@ interface Opportunity {
 
 const opportunityApi = {
   createOpportunity: async (opportunity: Partial<Opportunity>): Promise<Opportunity> => {
-    console.log('Creating opportunity:', opportunity);
+    console.log('Creating advanced opportunity:', opportunity);
     
-    const newOpportunity = {
-      id: Date.now(),
-      lastActivity: new Date().toISOString().split('T')[0],
-      tags: [],
-      timeline: {
-        startDate: '',
-        endDate: '',
-        milestones: []
-      },
-      budget: {
-        min: 0,
-        max: 0,
-        approved: false
-      },
-      ...opportunity
-    };
-    
-    const opportunities = JSON.parse(localStorage.getItem('opportunities') || '[]');
-    opportunities.push(newOpportunity);
-    localStorage.setItem('opportunities', JSON.stringify(opportunities));
-    
-    return newOpportunity as Opportunity;
+    try {
+      // Map advanced form data to API format
+      const apiPayload = {
+        title: opportunity.title,
+        amount: opportunity.value,
+        stage: opportunity.stage?.toUpperCase().replace('-', '_'),
+        leadId: opportunity.leadId || 1, // Default leadId for now
+        assignedTo: opportunity.assignedTo || null
+      };
+
+      // Call the real API
+      const response = await fetch('/.netlify/functions/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token' // Using mock token for now
+        },
+        body: JSON.stringify(apiPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Return enhanced opportunity with advanced form data
+      return {
+        ...opportunity,
+        id: result.data.id,
+        lastActivity: new Date().toISOString().split('T')[0],
+        tags: opportunity.tags || [],
+        timeline: opportunity.timeline || {
+          startDate: '',
+          endDate: '',
+          milestones: []
+        },
+        budget: opportunity.budget || {
+          min: 0,
+          max: 0,
+          approved: false
+        }
+      } as Opportunity;
+
+    } catch (error) {
+      console.error('API call failed, falling back to localStorage:', error);
+      
+      // Fallback to localStorage for advanced form
+      const newOpportunity = {
+        id: Date.now(),
+        lastActivity: new Date().toISOString().split('T')[0],
+        tags: [],
+        timeline: {
+          startDate: '',
+          endDate: '',
+          milestones: []
+        },
+        budget: {
+          min: 0,
+          max: 0,
+          approved: false
+        },
+        ...opportunity
+      };
+      
+      const opportunities = JSON.parse(localStorage.getItem('opportunities') || '[]');
+      opportunities.push(newOpportunity);
+      localStorage.setItem('opportunities', JSON.stringify(opportunities));
+      
+      return newOpportunity as Opportunity;
+    }
   }
 };
 
-export function AddOpportunityFormAdvanced() {
+interface AddOpportunityFormAdvancedProps {
+  onSuccess?: () => void;
+}
+
+export function AddOpportunityFormAdvanced({ onSuccess }: AddOpportunityFormAdvancedProps = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [newOpportunity, setNewOpportunity] = useState<Partial<Opportunity>>({
@@ -93,14 +148,14 @@ export function AddOpportunityFormAdvanced() {
     mutationFn: opportunityApi.createOpportunity,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-      toast({ 
-        title: 'Success', 
-        description: 'Opportunity created successfully',
+      toast({
+        title: 'Success',
+        description: 'Advanced opportunity created successfully',
         duration: 5000
       });
       setOpen(false);
       setStep(1);
-      setNewOpportunity({ 
+      setNewOpportunity({
         probability: 50,
         stage: 'qualified',
         priority: 'medium',
@@ -108,6 +163,11 @@ export function AddOpportunityFormAdvanced() {
         budget: { min: 0, max: 0, approved: false },
         timeline: { startDate: '', endDate: '', milestones: [] }
       });
+      
+      // Call the parent callback to refresh the opportunities list
+      if (onSuccess) {
+        onSuccess();
+      }
     },
     onError: (error: Error) => {
       toast({ 
