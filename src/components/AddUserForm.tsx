@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Plus, User, Mail, Phone, Building, Shield, Users, Target, CheckCircle } from 'lucide-react';
+import { Plus, User, Mail, Phone, Building, Shield, Users, Target, CheckCircle, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,28 +12,20 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 
-interface User {
-  id?: number;
-  name: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  role: string;
-  status: 'active' | 'inactive' | 'pending';
-  permissions: string[];
-  bio?: string;
-  avatar?: string;
-  leadSource?: number;
-  onboardingCompleted?: boolean;
-  skills?: string[];
-  certifications?: string[];
-  emergencyContact?: {
-    name: string;
-    phone: string;
-    relationship: string;
-  };
-}
+// Enhanced form components and validation
+import {
+  AutoSaveIndicator,
+  FormProgressTracker,
+  ConditionalField,
+} from '@/components/forms';
+import { useZodForm } from '@/hooks/use-validation';
+import { useAutoSave } from '@/hooks/use-auto-save';
+import { useFormPersistence } from '@/hooks/use-form-persistence';
+import { useAccessibility } from '@/hooks/use-accessibility';
+import { 
+  userSchema,
+  type UserFormData 
+} from '@/lib/validation/schemas';
 
 interface Lead {
   id: number;
@@ -45,7 +37,7 @@ interface Lead {
 }
 
 const userApi = {
-  createUser: async (user: Partial<User>): Promise<User> => {
+  createUser: async (user: Partial<UserFormData>): Promise<UserFormData> => {
     console.log('Creating user:', user);
     
     // Validate lead source if provided
@@ -67,6 +59,8 @@ const userApi = {
       onboardingCompleted: false,
       skills: [],
       certifications: [],
+      sendWelcomeEmail: true,
+      requirePasswordChange: true,
       ...user
     };
     
@@ -85,7 +79,7 @@ const userApi = {
       localStorage.setItem('leads', JSON.stringify(updatedLeads));
     }
     
-    return newUser as User;
+    return newUser as UserFormData;
   }
 };
 
@@ -102,15 +96,48 @@ const leadApi = {
 export function AddUserForm() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
-  const [newUser, setNewUser] = useState<Partial<User>>({
-    permissions: ['read'],
-    skills: [],
-    certifications: [],
-    onboardingCompleted: false
-  });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Initialize form with validation
+  const form = useZodForm(userSchema, {
+    permissions: ['read'],
+    skills: [],
+    certifications: [],
+    onboardingCompleted: false,
+    sendWelcomeEmail: true,
+    requirePasswordChange: true,
+    status: 'pending'
+  });
+
+  // Auto-save functionality
+  const autoSave = useAutoSave({
+    form,
+    onSave: async (data) => {
+      console.log('Auto-saving user form data:', data);
+      localStorage.setItem('user-draft', JSON.stringify(data));
+    },
+    onError: (error) => {
+      console.error('Auto-save failed:', error);
+    },
+    saveInterval: 30000, // Save every 30 seconds
+  });
+
+  // Form persistence for draft recovery
+  const persistence = useFormPersistence({
+    form,
+    key: 'add-user-draft',
+    onSave: (data) => console.log('User form data persisted:', data),
+    onLoad: (data) => console.log('User form data loaded:', data),
+  });
+
+  // Accessibility enhancements
+  const accessibility = useAccessibility({
+    form,
+    announceErrors: true,
+    announceSuccess: true,
+  });
 
   const { data: qualifiedLeads = [] } = useQuery({
     queryKey: ['qualified-leads'],
@@ -127,14 +154,19 @@ export function AddUserForm() {
         description: 'User created successfully and added to onboarding process',
         duration: 5000
       });
+      accessibility.announceSuccess('User created successfully');
       setOpen(false);
       setStep(1);
-      setNewUser({ 
+      form.reset({
         permissions: ['read'], 
         skills: [], 
         certifications: [],
-        onboardingCompleted: false 
+        onboardingCompleted: false,
+        sendWelcomeEmail: true,
+        requirePasswordChange: true,
+        status: 'pending'
       });
+      persistence.clearPersisted();
     },
     onError: (error: Error) => {
       toast({ 
@@ -142,70 +174,58 @@ export function AddUserForm() {
         description: error.message || 'Failed to create user',
         variant: 'destructive'
       });
+      accessibility.announceError('Failed to create user');
     }
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = form.handleSubmit(async (data) => {
     if (step < 3) {
       setStep(step + 1);
+      accessibility.announceCustom(`Moved to step ${step + 1} of 3`);
       return;
     }
 
-    if (!newUser.name || !newUser.email || !newUser.role) {
-      toast({ 
-        title: 'Validation Error', 
-        description: 'Please fill in all required fields',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    createMutation.mutate(newUser);
-  };
+    createMutation.mutate(data);
+  });
 
   const togglePermission = (permission: string) => {
-    const currentPermissions = newUser.permissions || [];
+    const currentPermissions = form.getValues('permissions') || [];
     const updatedPermissions = currentPermissions.includes(permission)
       ? currentPermissions.filter(p => p !== permission)
       : [...currentPermissions, permission];
     
-    setNewUser({ ...newUser, permissions: updatedPermissions });
+    form.setValue('permissions', updatedPermissions);
   };
 
   const addSkill = (skill: string) => {
-    if (skill && !newUser.skills?.includes(skill)) {
-      setNewUser({ 
-        ...newUser, 
-        skills: [...(newUser.skills || []), skill] 
-      });
+    const currentSkills = form.getValues('skills') || [];
+    if (skill && !currentSkills.includes(skill)) {
+      form.setValue('skills', [...currentSkills, skill]);
     }
   };
 
   const removeSkill = (skill: string) => {
-    setNewUser({ 
-      ...newUser, 
-      skills: newUser.skills?.filter(s => s !== skill) || [] 
-    });
+    const currentSkills = form.getValues('skills') || [];
+    form.setValue('skills', currentSkills.filter(s => s !== skill));
   };
 
   const handleLeadSelection = (leadId: string) => {
     const selectedLead = qualifiedLeads.find(lead => lead.id === parseInt(leadId));
     if (selectedLead) {
-      setNewUser({
-        ...newUser,
-        leadSource: selectedLead.id,
-        name: selectedLead.name,
-        email: selectedLead.email,
-        department: selectedLead.company
-      });
+      form.setValue('leadSource', selectedLead.id);
+      form.setValue('name', selectedLead.name);
+      form.setValue('email', selectedLead.email);
+      form.setValue('department', selectedLead.company);
     }
   };
+
+  const currentFormData = form.watch();
 
   return (
     <ErrorBoundary>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3">
+          <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 neomorphism-button">
             <Plus className="w-4 h-4 mr-2" />
             Add User
           </Button>
@@ -218,297 +238,343 @@ export function AddUserForm() {
             </DialogTitle>
           </DialogHeader>
           
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 mb-8">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500 shadow-sm"
-              style={{ width: `${(step / 3) * 100}%` }}
-            />
-          </div>
-
-          {step === 1 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-500" />
-                Basic Information
-              </h3>
-              
-              {qualifiedLeads.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="leadSource" className="text-sm font-medium text-gray-700 dark:text-gray-300">Import from Qualified Lead (Optional)</Label>
-                  <Select onValueChange={handleLeadSelection}>
-                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                      <SelectValue placeholder="Select a qualified lead to import data" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                      {qualifiedLeads.map((lead) => (
-                        <SelectItem key={lead.id} value={lead.id.toString()}>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-green-600">Score: {lead.score}</Badge>
-                            {lead.name} - {lead.company}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {newUser.leadSource && (
-                    <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
-                      <CheckCircle className="w-4 h-4" />
-                      Lead data imported successfully
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Full Name *</Label>
-                  <Input
-                    id="name"
-                    value={newUser.name || ''}
-                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
-                    placeholder="John Doe"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newUser.email || ''}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
-                    placeholder="john@company.com"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    value={newUser.phone || ''}
-                    onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="department" className="text-sm font-medium text-gray-700 dark:text-gray-300">Department</Label>
-                  <Select onValueChange={(value) => setNewUser({ ...newUser, department: value })}>
-                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="support">Support</SelectItem>
-                      <SelectItem value="development">Development</SelectItem>
-                      <SelectItem value="hr">Human Resources</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="position" className="text-sm font-medium text-gray-700 dark:text-gray-300">Position</Label>
-                  <Input
-                    id="position"
-                    value={newUser.position || ''}
-                    onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
-                    className="rounded-xl border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-800"
-                    placeholder="Software Engineer"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="role" className="text-sm font-medium text-gray-700 dark:text-gray-300">Role *</Label>
-                  <Select onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
-                    <SelectTrigger className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Permissions & Access</h3>
-              
-              <div>
-                <Label>System Permissions</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {['read', 'write', 'delete', 'admin', 'user-management', 'lead-management'].map((permission) => (
-                    <label key={permission} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={newUser.permissions?.includes(permission) || false}
-                        onChange={() => togglePermission(permission)}
-                        className="rounded border-gray-300"
-                      />
-                      <span className="capitalize text-sm">{permission.replace('-', ' ')}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="bio">Bio (Optional)</Label>
-                <Textarea
-                  id="bio"
-                  value={newUser.bio || ''}
-                  onChange={(e) => setNewUser({ ...newUser, bio: e.target.value })}
-                  className="neomorphism-input"
-                  placeholder="Brief description about the user..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="emergencyName">Emergency Contact Name</Label>
-                  <Input
-                    id="emergencyName"
-                    value={newUser.emergencyContact?.name || ''}
-                    onChange={(e) => setNewUser({ 
-                      ...newUser, 
-                      emergencyContact: { 
-                        ...newUser.emergencyContact,
-                        name: e.target.value,
-                        phone: newUser.emergencyContact?.phone || '',
-                        relationship: newUser.emergencyContact?.relationship || ''
-                      }
-                    })}
-                    className="neomorphism-input"
-                    placeholder="Emergency contact name"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
-                  <Input
-                    id="emergencyPhone"
-                    value={newUser.emergencyContact?.phone || ''}
-                    onChange={(e) => setNewUser({ 
-                      ...newUser, 
-                      emergencyContact: { 
-                        ...newUser.emergencyContact,
-                        name: newUser.emergencyContact?.name || '',
-                        phone: e.target.value,
-                        relationship: newUser.emergencyContact?.relationship || ''
-                      }
-                    })}
-                    className="neomorphism-input"
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Skills & Onboarding</h3>
-              
-              <div>
-                <Label htmlFor="newSkill">Add Skills</Label>
-                <div className="flex gap-2 mb-2">
-                  <Input
-                    id="newSkill"
-                    placeholder="Enter a skill..."
-                    className="neomorphism-input"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        addSkill((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).value = '';
-                      }
-                    }}
-                  />
-                  <Button 
-                    type="button"
-                    onClick={() => {
-                      const input = document.getElementById('newSkill') as HTMLInputElement;
-                      addSkill(input.value);
-                      input.value = '';
-                    }}
-                    className="neomorphism-button"
-                  >
-                    Add
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {newUser.skills?.map((skill, index) => (
-                    <Badge 
-                      key={index} 
-                      variant="secondary" 
-                      className="cursor-pointer hover:bg-red-100"
-                      onClick={() => removeSkill(skill)}
-                    >
-                      {skill} ×
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <Label>Send Welcome Email</Label>
-                  <p className="text-sm text-gray-600">Send onboarding email with login credentials</p>
-                </div>
-                <Switch 
-                  checked={true}
-                  className="data-[state=checked]:bg-neomorphism-blue"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <Label>Require Password Change</Label>
-                  <p className="text-sm text-gray-600">Force password change on first login</p>
-                </div>
-                <Switch 
-                  checked={true}
-                  className="data-[state=checked]:bg-neomorphism-blue"
-                />
-              </div>
-            </div>
-          )}
+          {/* Auto-save indicator */}
+          <AutoSaveIndicator 
+            status={autoSave.status}
+            lastSaved={autoSave.lastSaved}
+            error={autoSave.error}
+            compact
+          />
           
-          <div className="flex gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
-            {step > 1 && (
-              <Button 
-                onClick={() => setStep(step - 1)} 
-                variant="outline" 
-                className="flex-1 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                Back
-              </Button>
+          {/* Progress tracker */}
+          <FormProgressTracker 
+            currentStep={step} 
+            steps={[
+              { title: 'Basic Info', description: 'Personal & role information' },
+              { title: 'Permissions', description: 'Access & emergency contacts' },
+              { title: 'Skills & Setup', description: 'Skills & onboarding settings' }
+            ]}
+          />
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {step === 1 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                    <User className="w-5 h-5 text-blue-500" />
+                    Basic Information
+                  </h3>
+                  
+                  <ConditionalField condition={qualifiedLeads.length > 0}>
+                    <div className="space-y-2 mb-6">
+                      <Label htmlFor="leadSource" className="text-sm font-medium text-gray-700 dark:text-gray-300">Import from Qualified Lead (Optional)</Label>
+                      <Select onValueChange={handleLeadSelection}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select a qualified lead to import data" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {qualifiedLeads.map((lead) => (
+                            <SelectItem key={lead.id} value={lead.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-green-600">Score: {lead.score}</Badge>
+                                {lead.name} - {lead.company}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <ConditionalField condition={!!currentFormData.leadSource}>
+                        <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" />
+                          Lead data imported successfully
+                        </p>
+                      </ConditionalField>
+                    </div>
+                  </ConditionalField>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Full Name *</Label>
+                      <Input
+                        {...form.register('name')}
+                        id="name"
+                        className="neomorphism-input"
+                        placeholder="John Doe"
+                      />
+                      {form.getFieldError('name') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('name')}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">Email Address *</Label>
+                      <Input
+                        {...form.register('email')}
+                        id="email"
+                        type="email"
+                        className="neomorphism-input"
+                        placeholder="john@company.com"
+                      />
+                      {form.getFieldError('email') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('email')}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</Label>
+                      <Input
+                        {...form.register('phone')}
+                        id="phone"
+                        className="neomorphism-input"
+                        placeholder="+1 (555) 123-4567"
+                      />
+                      {form.getFieldError('phone') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('phone')}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="department" className="text-sm font-medium text-gray-700 dark:text-gray-300">Department *</Label>
+                      <Select onValueChange={(value) => form.setValue('department', value as any)}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sales">Sales</SelectItem>
+                          <SelectItem value="marketing">Marketing</SelectItem>
+                          <SelectItem value="support">Support</SelectItem>
+                          <SelectItem value="development">Development</SelectItem>
+                          <SelectItem value="hr">Human Resources</SelectItem>
+                          <SelectItem value="finance">Finance</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {form.getFieldError('department') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('department')}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="position" className="text-sm font-medium text-gray-700 dark:text-gray-300">Position</Label>
+                      <Input
+                        {...form.register('position')}
+                        id="position"
+                        className="neomorphism-input"
+                        placeholder="Software Engineer"
+                      />
+                      {form.getFieldError('position') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('position')}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="role" className="text-sm font-medium text-gray-700 dark:text-gray-300">Role *</Label>
+                      <Select onValueChange={(value) => form.setValue('role', value as any)}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {form.getFieldError('role') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('role')}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
-            <Button 
-              onClick={() => setOpen(false)} 
-              variant="outline" 
-              className="flex-1 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? 'Creating...' : step === 3 ? 'Create User' : 'Next'}
-            </Button>
-          </div>
+
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-purple-500" />
+                    Permissions & Access
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label>System Permissions</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {['read', 'write', 'delete', 'admin', 'user-management', 'lead-management'].map((permission) => (
+                          <label key={permission} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 neomorphism-button">
+                            <input
+                              type="checkbox"
+                              checked={currentFormData.permissions?.includes(permission) || false}
+                              onChange={() => togglePermission(permission)}
+                              className="rounded border-gray-300"
+                            />
+                            <span className="capitalize text-sm">{permission.replace('-', ' ')}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="bio">Bio (Optional)</Label>
+                      <Textarea
+                        {...form.register('bio')}
+                        id="bio"
+                        className="neomorphism-input"
+                        placeholder="Brief description about the user..."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="emergencyName">Emergency Contact Name</Label>
+                        <Input
+                          id="emergencyName"
+                          value={currentFormData.emergencyContact?.name || ''}
+                          onChange={(e) => form.setValue('emergencyContact', { 
+                            ...currentFormData.emergencyContact,
+                            name: e.target.value,
+                            phone: currentFormData.emergencyContact?.phone || '',
+                            relationship: currentFormData.emergencyContact?.relationship || ''
+                          })}
+                          className="neomorphism-input"
+                          placeholder="Emergency contact name"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
+                        <Input
+                          id="emergencyPhone"
+                          value={currentFormData.emergencyContact?.phone || ''}
+                          onChange={(e) => form.setValue('emergencyContact', { 
+                            ...currentFormData.emergencyContact,
+                            name: currentFormData.emergencyContact?.name || '',
+                            phone: e.target.value,
+                            relationship: currentFormData.emergencyContact?.relationship || ''
+                          })}
+                          className="neomorphism-input"
+                          placeholder="+1 (555) 123-4567"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-green-500" />
+                    Skills & Onboarding
+                  </h3>
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <Label htmlFor="newSkill">Add Skills</Label>
+                      <div className="flex gap-2 mb-2">
+                        <Input
+                          id="newSkill"
+                          placeholder="Enter a skill..."
+                          className="neomorphism-input"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addSkill((e.target as HTMLInputElement).value);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <Button 
+                          type="button"
+                          onClick={() => {
+                            const input = document.getElementById('newSkill') as HTMLInputElement;
+                            addSkill(input.value);
+                            input.value = '';
+                          }}
+                          className="neomorphism-button"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {currentFormData.skills?.map((skill, index) => (
+                          <Badge 
+                            key={index} 
+                            variant="secondary" 
+                            className="cursor-pointer hover:bg-red-100"
+                            onClick={() => removeSkill(skill)}
+                          >
+                            {skill} ×
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl neomorphism-card">
+                      <div>
+                        <Label>Send Welcome Email</Label>
+                        <p className="text-sm text-gray-600">Send onboarding email with login credentials</p>
+                      </div>
+                      <Switch 
+                        checked={currentFormData.sendWelcomeEmail}
+                        onCheckedChange={(checked) => form.setValue('sendWelcomeEmail', checked)}
+                        className="data-[state=checked]:bg-neomorphism-blue"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl neomorphism-card">
+                      <div>
+                        <Label>Require Password Change</Label>
+                        <p className="text-sm text-gray-600">Force password change on first login</p>
+                      </div>
+                      <Switch 
+                        checked={currentFormData.requirePasswordChange}
+                        onCheckedChange={(checked) => form.setValue('requirePasswordChange', checked)}
+                        className="data-[state=checked]:bg-neomorphism-blue"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+              {step > 1 && (
+                <Button 
+                  type="button"
+                  onClick={() => {
+                    setStep(step - 1);
+                    accessibility.announceCustom(`Moved to step ${step - 1} of 3`);
+                  }}
+                  variant="outline" 
+                  className="flex-1 neomorphism-button"
+                >
+                  Back
+                </Button>
+              )}
+              <Button 
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  persistence.clearPersisted();
+                }}
+                variant="outline" 
+                className="flex-1 neomorphism-button"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white neomorphism-button"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? 'Creating...' : step === 3 ? 'Create User' : 'Next'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </ErrorBoundary>

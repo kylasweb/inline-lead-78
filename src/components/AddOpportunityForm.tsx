@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Plus, Target, DollarSign, Calendar, User, Brain, Sparkles, TrendingUp } from 'lucide-react';
@@ -12,35 +11,22 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 
-interface Opportunity {
-  id?: number;
-  name: string;
-  description?: string;
-  value: number;
-  stage: string;
-  probability: number;
-  expectedCloseDate: string;
-  leadId?: number;
-  assignedTo: string;
-  source: string;
-  competitorAnalysis?: string;
-  nextSteps?: string;
-  aiInsights?: {
-    riskFactors: string[];
-    recommendations: string[];
-    successProbability: number;
-    estimatedTimeToClose: string;
-  };
-  audience?: {
-    demographics: string;
-    psychographics: string;
-    painPoints: string[];
-    budget: string;
-  };
-  potentialPatterns?: string[];
-  behavioralIndicators?: string[];
-}
+// Enhanced form components and validation
+import {
+  AutoSaveIndicator,
+  FormProgressTracker,
+  ConditionalField,
+} from '@/components/forms';
+import { useZodForm } from '@/hooks/use-validation';
+import { useAutoSave } from '@/hooks/use-auto-save';
+import { useFormPersistence } from '@/hooks/use-form-persistence';
+import { useAccessibility } from '@/hooks/use-accessibility';
+import { 
+  opportunitySchema,
+  type OpportunityFormData 
+} from '@/lib/validation/schemas';
 
+// Use the validated types from schemas
 interface Lead {
   id: number;
   name: string;
@@ -51,7 +37,7 @@ interface Lead {
 const GEMINI_API_KEY = 'AIzaSyAPi9CB4lcHCvOGs6fTxZdcUSU48FUFgps';
 
 const geminiApi = {
-  analyzeOpportunity: async (opportunityData: Partial<Opportunity>) => {
+  analyzeOpportunity: async (opportunityData: Partial<OpportunityFormData>) => {
     try {
       const prompt = `
         Analyze this sales opportunity and provide insights:
@@ -120,7 +106,7 @@ const geminiApi = {
 };
 
 const opportunityApi = {
-  createOpportunity: async (opportunity: Partial<Opportunity>): Promise<Opportunity> => {
+  createOpportunity: async (opportunity: Partial<OpportunityFormData>): Promise<OpportunityFormData> => {
     console.log('Creating opportunity:', opportunity);
     
     // Get AI insights before creating
@@ -129,7 +115,7 @@ const opportunityApi = {
     const newOpportunity = {
       id: Date.now(),
       probability: 50,
-      stage: 'qualification',
+      stage: 'qualification' as const,
       aiInsights,
       ...opportunity
     };
@@ -138,7 +124,7 @@ const opportunityApi = {
     opportunities.push(newOpportunity);
     localStorage.setItem('opportunities', JSON.stringify(opportunities));
     
-    return newOpportunity as Opportunity;
+    return newOpportunity as OpportunityFormData;
   }
 };
 
@@ -158,15 +144,46 @@ export function AddOpportunityForm() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [newOpportunity, setNewOpportunity] = useState<Partial<Opportunity>>({
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Initialize form with validation
+  const form = useZodForm(opportunitySchema, {
     probability: 50,
     stage: 'qualification',
     potentialPatterns: [],
     behavioralIndicators: []
   });
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  // Auto-save functionality
+  const autoSave = useAutoSave({
+    form,
+    onSave: async (data) => {
+      console.log('Auto-saving form data:', data);
+      // Save to localStorage or backend
+      localStorage.setItem('opportunity-draft', JSON.stringify(data));
+    },
+    onError: (error) => {
+      console.error('Auto-save failed:', error);
+    },
+    saveInterval: 30000, // Save every 30 seconds
+  });
+
+  // Form persistence for draft recovery
+  const persistence = useFormPersistence({
+    form,
+    key: 'add-opportunity-draft',
+    onSave: (data) => console.log('Form data persisted:', data),
+    onLoad: (data) => console.log('Form data loaded:', data),
+  });
+
+  // Accessibility enhancements
+  const accessibility = useAccessibility({
+    form,
+    announceErrors: true,
+    announceSuccess: true,
+  });
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
@@ -182,41 +199,36 @@ export function AddOpportunityForm() {
         description: 'Opportunity created with AI insights',
         duration: 5000
       });
+      accessibility.announceSuccess('Opportunity created successfully');
       setOpen(false);
       setStep(1);
-      setNewOpportunity({ 
+      form.reset({
         probability: 50, 
         stage: 'qualification',
         potentialPatterns: [],
         behavioralIndicators: []
       });
+      persistence.clearPersisted();
     },
-    onError: () => {
+    onError: (error) => {
       toast({ 
         title: 'Error', 
-        description: 'Failed to create opportunity',
+        description: error.message || 'Failed to create opportunity',
         variant: 'destructive'
       });
+      accessibility.announceError('Failed to create opportunity');
     }
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = form.handleSubmit(async (data) => {
     if (step < 3) {
       setStep(step + 1);
+      accessibility.announceCustom(`Moved to step ${step + 1} of 3`);
       return;
     }
 
-    if (!newOpportunity.name || !newOpportunity.value || !newOpportunity.assignedTo) {
-      toast({ 
-        title: 'Validation Error', 
-        description: 'Please fill in all required fields',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    createMutation.mutate(newOpportunity);
-  };
+    createMutation.mutate(data);
+  });
 
   const stages = [
     { value: 'qualification', label: 'Qualification', probability: 25 },
@@ -229,15 +241,13 @@ export function AddOpportunityForm() {
 
   const handleStageChange = (stage: string) => {
     const selectedStage = stages.find(s => s.value === stage);
-    setNewOpportunity({
-      ...newOpportunity,
-      stage,
-      probability: selectedStage?.probability || 50
-    });
+    form.setValue('stage', stage as any);
+    form.setValue('probability', selectedStage?.probability || 50);
   };
 
   const analyzeWithAI = async () => {
-    if (!newOpportunity.name || !newOpportunity.value) {
+    const formData = form.getValues();
+    if (!formData.name || !formData.value) {
       toast({
         title: 'Missing Information',
         description: 'Please provide opportunity name and value for AI analysis',
@@ -247,43 +257,31 @@ export function AddOpportunityForm() {
     }
 
     setIsAnalyzing(true);
+    accessibility.announceCustom('Analyzing opportunity with AI');
+    
     try {
-      const insights = await geminiApi.analyzeOpportunity(newOpportunity);
-      setNewOpportunity({
-        ...newOpportunity,
-        aiInsights: insights,
-        potentialPatterns: insights.potentialPatterns || [],
-        behavioralIndicators: insights.behavioralIndicators || []
-      });
+      const insights = await geminiApi.analyzeOpportunity(formData);
+      form.setValue('aiInsights', insights);
+      form.setValue('potentialPatterns', insights.potentialPatterns || []);
+      form.setValue('behavioralIndicators', insights.behavioralIndicators || []);
+      
       toast({
         title: 'AI Analysis Complete',
         description: 'Opportunity analyzed with AI insights',
       });
+      accessibility.announceSuccess('AI analysis completed successfully');
     } catch (error) {
       toast({
         title: 'AI Analysis Failed',
         description: 'Could not analyze opportunity. Please try again.',
         variant: 'destructive'
       });
+      accessibility.announceError('AI analysis failed');
     }
     setIsAnalyzing(false);
   };
 
-  const addPattern = (pattern: string) => {
-    if (pattern && !newOpportunity.potentialPatterns?.includes(pattern)) {
-      setNewOpportunity({
-        ...newOpportunity,
-        potentialPatterns: [...(newOpportunity.potentialPatterns || []), pattern]
-      });
-    }
-  };
-
-  const removePattern = (pattern: string) => {
-    setNewOpportunity({
-      ...newOpportunity,
-      potentialPatterns: newOpportunity.potentialPatterns?.filter(p => p !== pattern) || []
-    });
-  };
+  const currentFormData = form.watch();
 
   return (
     <ErrorBoundary>
@@ -302,216 +300,142 @@ export function AddOpportunityForm() {
             </DialogTitle>
           </DialogHeader>
           
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
-            <div 
-              className="bg-gradient-to-r from-neomorphism-blue to-neomorphism-violet h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(step / 3) * 100}%` }}
-            ></div>
-          </div>
+          {/* Auto-save indicator */}
+          <AutoSaveIndicator 
+            status={autoSave.status}
+            lastSaved={autoSave.lastSaved}
+            error={autoSave.error}
+            compact
+          />
+          
+          {/* Progress tracker */}
+          <FormProgressTracker 
+            currentStep={step} 
+            steps={[
+              { title: 'Basic Info', description: 'Opportunity details' },
+              { title: 'Analysis', description: 'AI insights & patterns' },
+              { title: 'Strategic', description: 'Timeline & next steps' }
+            ]}
+          />
 
-          {step === 1 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="name">Opportunity Name *</Label>
-                  <Input
-                    id="name"
-                    value={newOpportunity.name || ''}
-                    onChange={(e) => setNewOpportunity({ ...newOpportunity, name: e.target.value })}
-                    className="neomorphism-input"
-                    placeholder="e.g., TechCorp CRM Implementation"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="value">Estimated Value *</Label>
-                  <Input
-                    id="value"
-                    type="number"
-                    value={newOpportunity.value || ''}
-                    onChange={(e) => setNewOpportunity({ ...newOpportunity, value: parseFloat(e.target.value) })}
-                    className="neomorphism-input"
-                    placeholder="25000"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="stage">Stage *</Label>
-                  <Select onValueChange={handleStageChange} value={newOpportunity.stage}>
-                    <SelectTrigger className="neomorphism-input">
-                      <SelectValue placeholder="Select stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stages.map((stage) => (
-                        <SelectItem key={stage.value} value={stage.value}>
-                          {stage.label} ({stage.probability}%)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="assignedTo">Assigned To *</Label>
-                  <Select onValueChange={(value) => setNewOpportunity({ ...newOpportunity, assignedTo: value })}>
-                    <SelectTrigger className="neomorphism-input">
-                      <SelectValue placeholder="Select team member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sarah-wilson">Sarah Wilson</SelectItem>
-                      <SelectItem value="mike-chen">Mike Chen</SelectItem>
-                      <SelectItem value="john-doe">John Doe</SelectItem>
-                      <SelectItem value="jane-smith">Jane Smith</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="source">Source</Label>
-                  <Select onValueChange={(value) => setNewOpportunity({ ...newOpportunity, source: value })}>
-                    <SelectTrigger className="neomorphism-input">
-                      <SelectValue placeholder="Select source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="inbound-lead">Inbound Lead</SelectItem>
-                      <SelectItem value="referral">Referral</SelectItem>
-                      <SelectItem value="cold-outreach">Cold Outreach</SelectItem>
-                      <SelectItem value="marketing-campaign">Marketing Campaign</SelectItem>
-                      <SelectItem value="trade-show">Trade Show</SelectItem>
-                      <SelectItem value="social-media">Social Media</SelectItem>
-                      <SelectItem value="content-marketing">Content Marketing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="col-span-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={newOpportunity.description || ''}
-                    onChange={(e) => setNewOpportunity({ ...newOpportunity, description: e.target.value })}
-                    className="neomorphism-input"
-                    placeholder="Describe the opportunity, client needs, and proposed solution..."
-                    rows={3}
-                  />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {step === 1 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    Basic Information
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Enter the fundamental details about this opportunity</p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="name">Opportunity Name *</Label>
+                      <Input
+                        {...form.register('name')}
+                        id="name"
+                        placeholder="e.g., TechCorp CRM Implementation"
+                        className="neomorphism-input"
+                      />
+                      {form.getFieldError('name') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('name')}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="value">Estimated Value *</Label>
+                      <Input
+                        {...form.register('value', { valueAsNumber: true })}
+                        id="value"
+                        type="number"
+                        placeholder="25000"
+                        className="neomorphism-input"
+                      />
+                      {form.getFieldError('value') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('value')}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="stage">Stage *</Label>
+                      <Select onValueChange={handleStageChange} value={currentFormData.stage}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.value} value={stage.value}>
+                              {stage.label} ({stage.probability}%)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {form.getFieldError('stage') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('stage')}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="assignedTo">Assigned To *</Label>
+                      <Select onValueChange={(value) => form.setValue('assignedTo', value)}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select team member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sarah-wilson">Sarah Wilson</SelectItem>
+                          <SelectItem value="mike-chen">Mike Chen</SelectItem>
+                          <SelectItem value="john-doe">John Doe</SelectItem>
+                          <SelectItem value="jane-smith">Jane Smith</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {form.getFieldError('assignedTo') && (
+                        <p className="text-sm text-red-600 mt-1">{form.getFieldError('assignedTo')}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="source">Source</Label>
+                      <Select onValueChange={(value) => form.setValue('source', value as any)}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inbound-lead">Inbound Lead</SelectItem>
+                          <SelectItem value="referral">Referral</SelectItem>
+                          <SelectItem value="cold-outreach">Cold Outreach</SelectItem>
+                          <SelectItem value="marketing-campaign">Marketing Campaign</SelectItem>
+                          <SelectItem value="trade-show">Trade Show</SelectItem>
+                          <SelectItem value="social-media">Social Media</SelectItem>
+                          <SelectItem value="content-marketing">Content Marketing</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        {...form.register('description')}
+                        id="description"
+                        placeholder="Describe the opportunity, client needs, and proposed solution..."
+                        rows={3}
+                        className="neomorphism-input"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Audience & Behavioral Analysis</h3>
-              
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="demographics">Target Demographics</Label>
-                    <Textarea
-                      id="demographics"
-                      value={newOpportunity.audience?.demographics || ''}
-                      onChange={(e) => setNewOpportunity({ 
-                        ...newOpportunity, 
-                        audience: { 
-                          ...newOpportunity.audience,
-                          demographics: e.target.value,
-                          psychographics: newOpportunity.audience?.psychographics || '',
-                          painPoints: newOpportunity.audience?.painPoints || [],
-                          budget: newOpportunity.audience?.budget || ''
-                        }
-                      })}
-                      className="neomorphism-input"
-                      placeholder="Age, industry, company size, location..."
-                      rows={3}
-                    />
-                  </div>
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    AI Analysis & Patterns
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Let AI analyze your opportunity and identify success patterns</p>
                   
-                  <div>
-                    <Label htmlFor="psychographics">Psychographics</Label>
-                    <Textarea
-                      id="psychographics"
-                      value={newOpportunity.audience?.psychographics || ''}
-                      onChange={(e) => setNewOpportunity({ 
-                        ...newOpportunity, 
-                        audience: { 
-                          ...newOpportunity.audience,
-                          demographics: newOpportunity.audience?.demographics || '',
-                          psychographics: e.target.value,
-                          painPoints: newOpportunity.audience?.painPoints || [],
-                          budget: newOpportunity.audience?.budget || ''
-                        }
-                      })}
-                      className="neomorphism-input"
-                      placeholder="Values, interests, lifestyle, motivations..."
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="budget">Budget Range</Label>
-                    <Input
-                      id="budget"
-                      value={newOpportunity.audience?.budget || ''}
-                      onChange={(e) => setNewOpportunity({ 
-                        ...newOpportunity, 
-                        audience: { 
-                          ...newOpportunity.audience,
-                          demographics: newOpportunity.audience?.demographics || '',
-                          psychographics: newOpportunity.audience?.psychographics || '',
-                          painPoints: newOpportunity.audience?.painPoints || [],
-                          budget: e.target.value
-                        }
-                      })}
-                      className="neomorphism-input"
-                      placeholder="$10,000 - $50,000"
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label>Potential Success Patterns</Label>
-                    <div className="flex gap-2 mb-2">
-                      <Input
-                        placeholder="Add success pattern..."
-                        className="neomorphism-input"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            addPattern((e.target as HTMLInputElement).value);
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }}
-                      />
-                      <Button 
-                        type="button"
-                        onClick={() => {
-                          const input = document.querySelector('input[placeholder="Add success pattern..."]') as HTMLInputElement;
-                          addPattern(input.value);
-                          input.value = '';
-                        }}
-                        className="neomorphism-button"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      {newOpportunity.potentialPatterns?.map((pattern, index) => (
-                        <Badge 
-                          key={index} 
-                          variant="secondary" 
-                          className="cursor-pointer hover:bg-red-100 mr-1 mb-1"
-                          onClick={() => removePattern(pattern)}
-                        >
-                          {pattern} ×
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
+                  <div className="space-y-4">
                     <Button 
                       type="button"
                       onClick={analyzeWithAI}
@@ -530,152 +454,164 @@ export function AddOpportunityForm() {
                         </>
                       )}
                     </Button>
-                  </div>
-                  
-                  {newOpportunity.aiInsights && (
-                    <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                      <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4" />
-                        AI Insights
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium">Success Probability:</span> 
-                          <Badge className="ml-2 bg-green-100 text-green-700">
-                            {newOpportunity.aiInsights.successProbability}%
-                          </Badge>
-                        </div>
-                        <div>
-                          <span className="font-medium">Est. Time to Close:</span> 
-                          <span className="ml-2">{newOpportunity.aiInsights.estimatedTimeToClose}</span>
+                    
+                    <ConditionalField condition={!!currentFormData.aiInsights}>
+                      <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                        <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" />
+                          AI Insights
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium">Success Probability:</span> 
+                            <Badge className="ml-2 bg-green-100 text-green-700">
+                              {currentFormData.aiInsights?.successProbability}%
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="font-medium">Est. Time to Close:</span> 
+                            <span className="ml-2">{currentFormData.aiInsights?.estimatedTimeToClose}</span>
+                          </div>
                         </div>
                       </div>
+                    </ConditionalField>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Strategic Details & Next Steps
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Complete the opportunity details</p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="expectedCloseDate">Expected Close Date</Label>
+                      <Input
+                        {...form.register('expectedCloseDate')}
+                        id="expectedCloseDate"
+                        type="date"
+                        className="neomorphism-input"
+                      />
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Strategic Details & Next Steps</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="expectedCloseDate">Expected Close Date</Label>
-                  <Input
-                    id="expectedCloseDate"
-                    type="date"
-                    value={newOpportunity.expectedCloseDate || ''}
-                    onChange={(e) => setNewOpportunity({ ...newOpportunity, expectedCloseDate: e.target.value })}
-                    className="neomorphism-input"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="probability">Win Probability (%)</Label>
-                  <Input
-                    id="probability"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={newOpportunity.probability || ''}
-                    onChange={(e) => setNewOpportunity({ ...newOpportunity, probability: parseInt(e.target.value) })}
-                    className="neomorphism-input"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="leadId">Related Lead</Label>
-                  <Select onValueChange={(value) => setNewOpportunity({ ...newOpportunity, leadId: parseInt(value) })}>
-                    <SelectTrigger className="neomorphism-input">
-                      <SelectValue placeholder="Select lead" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {leads.map((lead) => (
-                        <SelectItem key={lead.id} value={lead.id.toString()}>
-                          {lead.name} - {lead.company}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="nextSteps">Next Steps</Label>
-                <Textarea
-                  id="nextSteps"
-                  value={newOpportunity.nextSteps || ''}
-                  onChange={(e) => setNewOpportunity({ ...newOpportunity, nextSteps: e.target.value })}
-                  className="neomorphism-input"
-                  placeholder="What are the immediate next steps to move this opportunity forward?"
-                  rows={3}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="competitorAnalysis">Competitor Analysis</Label>
-                <Textarea
-                  id="competitorAnalysis"
-                  value={newOpportunity.competitorAnalysis || ''}
-                  onChange={(e) => setNewOpportunity({ ...newOpportunity, competitorAnalysis: e.target.value })}
-                  className="neomorphism-input"
-                  placeholder="Known competitors and competitive advantages..."
-                  rows={3}
-                />
-              </div>
-
-              {newOpportunity.aiInsights && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-red-50 rounded-xl">
-                    <h4 className="font-semibold text-red-800 mb-2">Risk Factors</h4>
-                    <ul className="text-sm text-red-700 space-y-1">
-                      {newOpportunity.aiInsights.riskFactors.map((risk, index) => (
-                        <li key={index}>• {risk}</li>
-                      ))}
-                    </ul>
+                    
+                    <div>
+                      <Label htmlFor="probability">Win Probability (%)</Label>
+                      <Input
+                        {...form.register('probability', { valueAsNumber: true })}
+                        id="probability"
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="neomorphism-input"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="leadId">Related Lead</Label>
+                      <Select onValueChange={(value) => form.setValue('leadId', parseInt(value))}>
+                        <SelectTrigger className="neomorphism-input">
+                          <SelectValue placeholder="Select lead" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {leads.map((lead) => (
+                            <SelectItem key={lead.id} value={lead.id.toString()}>
+                              {lead.name} - {lead.company}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   
-                  <div className="p-4 bg-green-50 rounded-xl">
-                    <h4 className="font-semibold text-green-800 mb-2">AI Recommendations</h4>
-                    <ul className="text-sm text-green-700 space-y-1">
-                      {newOpportunity.aiInsights.recommendations.map((rec, index) => (
-                        <li key={index}>• {rec}</li>
-                      ))}
-                    </ul>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <Label htmlFor="nextSteps">Next Steps</Label>
+                      <Textarea
+                        {...form.register('nextSteps')}
+                        id="nextSteps"
+                        placeholder="What are the immediate next steps to move this opportunity forward?"
+                        rows={3}
+                        className="neomorphism-input"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="competitorAnalysis">Competitor Analysis</Label>
+                      <Textarea
+                        {...form.register('competitorAnalysis')}
+                        id="competitorAnalysis"
+                        placeholder="Known competitors and competitive advantages..."
+                        rows={3}
+                        className="neomorphism-input"
+                      />
+                    </div>
                   </div>
+
+                  <ConditionalField condition={!!currentFormData.aiInsights}>
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="p-4 bg-red-50 rounded-xl">
+                        <h4 className="font-semibold text-red-800 mb-2">Risk Factors</h4>
+                        <ul className="text-sm text-red-700 space-y-1">
+                          {currentFormData.aiInsights?.riskFactors?.map((risk, index) => (
+                            <li key={index}>• {risk}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="p-4 bg-green-50 rounded-xl">
+                        <h4 className="font-semibold text-green-800 mb-2">AI Recommendations</h4>
+                        <ul className="text-sm text-green-700 space-y-1">
+                          {currentFormData.aiInsights?.recommendations?.map((rec, index) => (
+                            <li key={index}>• {rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </ConditionalField>
                 </div>
+              </div>
+            )}
+            
+            <div className="flex gap-3 pt-4">
+              {step > 1 && (
+                <Button 
+                  type="button"
+                  onClick={() => {
+                    setStep(step - 1);
+                    accessibility.announceCustom(`Moved to step ${step - 1} of 3`);
+                  }}
+                  variant="outline" 
+                  className="flex-1 neomorphism-button"
+                >
+                  Back
+                </Button>
               )}
-            </div>
-          )}
-          
-          <div className="flex gap-3 pt-4">
-            {step > 1 && (
               <Button 
-                onClick={() => setStep(step - 1)} 
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  persistence.clearPersisted();
+                }}
                 variant="outline" 
                 className="flex-1 neomorphism-button"
               >
-                Back
+                Cancel
               </Button>
-            )}
-            <Button 
-              onClick={() => setOpen(false)} 
-              variant="outline" 
-              className="flex-1 neomorphism-button"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              className="flex-1 bg-gradient-to-r from-neomorphism-blue to-neomorphism-violet text-white neomorphism-button"
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? 'Creating...' : step === 3 ? 'Create Opportunity' : 'Next'}
-            </Button>
-          </div>
+              <Button 
+                type="submit"
+                className="flex-1 bg-gradient-to-r from-neomorphism-blue to-neomorphism-violet text-white neomorphism-button"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? 'Creating...' : step === 3 ? 'Create Opportunity' : 'Next'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </ErrorBoundary>

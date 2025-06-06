@@ -128,6 +128,190 @@
   body {
     @apply bg-neomorphism-background text-foreground font-sans transition-colors duration-300;
   }
+
+  /* Enhanced Form Validation Styles */
+  .validated-input-container,
+  .validated-select-container,
+  .validated-textarea-container,
+  .validated-datepicker-container,
+  .validated-number-input-container {
+    @apply relative;
+  }
+
+  /* Form validation states */
+  .validated-input,
+  .validated-select,
+  .validated-textarea,
+  .validated-datepicker,
+  .validated-number-input {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  /* Error state animations */
+  .validated-input:invalid,
+  .validated-select:invalid,
+  .validated-textarea:invalid,
+  .validated-datepicker:invalid,
+  .validated-number-input:invalid {
+    @apply animate-pulse;
+  }
+
+  /* Loading skeleton for form fields */
+  .form-field-skeleton {
+    @apply animate-pulse bg-gray-200 dark:bg-gray-700 rounded;
+  }
+
+  /* Form section transitions */
+  .form-section {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .form-section-content {
+    @apply overflow-hidden;
+  }
+
+  /* Multi-step form progress */
+  .multi-step-form-header {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Conditional field animations */
+  .conditional-field {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  /* Error summary styling */
+  .error-summary {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  .error-list {
+    @apply space-y-2;
+  }
+
+  /* Focus ring enhancements */
+  .validated-input:focus-within,
+  .validated-select:focus-within,
+  .validated-textarea:focus-within,
+  .validated-datepicker:focus-within,
+  .validated-number-input:focus-within {
+    @apply ring-2 ring-offset-2 ring-offset-background;
+  }
+
+  /* Accessibility improvements */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+  }
+
+  /* Form field hover states */
+  .validated-input-container:hover .validated-input:not(:disabled),
+  .validated-select-container:hover .validated-select:not(:disabled),
+  .validated-textarea-container:hover .validated-textarea:not(:disabled),
+  .validated-datepicker-container:hover .validated-datepicker:not(:disabled),
+  .validated-number-input-container:hover .validated-number-input:not(:disabled) {
+    @apply border-gray-400 dark:border-gray-500;
+  }
+
+  /* Disabled state styling */
+  .validated-input:disabled,
+  .validated-select:disabled,
+  .validated-textarea:disabled,
+  .validated-datepicker:disabled,
+  .validated-number-input:disabled {
+    @apply bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed;
+  }
+
+  /* Form grid layouts */
+  .form-grid {
+    @apply grid gap-4;
+  }
+
+  .form-grid-cols-1 { @apply grid-cols-1; }
+  .form-grid-cols-2 { @apply grid-cols-1 md:grid-cols-2; }
+  .form-grid-cols-3 { @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-3; }
+  .form-grid-cols-4 { @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-4; }
+
+  /* Form spacing utilities */
+  .form-section-spacing {
+    @apply space-y-6;
+  }
+
+  .form-field-spacing {
+    @apply space-y-4;
+  }
+
+  .form-row-spacing {
+    @apply gap-4;
+  }
+
+  /* Responsive form layouts */
+  @screen sm {
+    .form-grid-cols-2 { @apply grid-cols-2; }
+    .form-grid-cols-3 { @apply grid-cols-2; }
+    .form-grid-cols-4 { @apply grid-cols-2; }
+  }
+
+  @screen lg {
+    .form-grid-cols-3 { @apply grid-cols-3; }
+    .form-grid-cols-4 { @apply grid-cols-3; }
+  }
+
+  @screen xl {
+    .form-grid-cols-4 { @apply grid-cols-4; }
+  }
+
+  /* Print styles for forms */
+  @media print {
+    .validated-input,
+    .validated-select,
+    .validated-textarea,
+    .validated-datepicker,
+    .validated-number-input {
+      @apply border border-gray-400 bg-transparent;
+    }
+
+    .error-summary,
+    .form-validation-icons {
+      @apply hidden;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .validated-input,
+    .validated-select,
+    .validated-textarea,
+    .validated-datepicker,
+    .validated-number-input {
+      @apply border-2;
+    }
+
+    .validated-input:focus,
+    .validated-select:focus,
+    .validated-textarea:focus,
+    .validated-datepicker:focus,
+    .validated-number-input:focus {
+      @apply outline outline-2 outline-offset-2 outline-blue-600;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .validated-input,
+    .validated-select,
+    .validated-textarea,
+    .validated-datepicker,
+    .validated-number-input,
+    .form-section,
+    .conditional-field,
+    .error-summary {
+      @apply transition-none;
+    }
+
+    .form-field-skeleton {
+      @apply animate-none;
+    }
+  }
 }
 
 @layer components {
