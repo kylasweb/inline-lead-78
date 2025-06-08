@@ -1,6 +1,6 @@
 [build]
   # Build command for React app
-  command = "npm run build && netlify functions:build netlify/functions"
+  command = "npm run build && netlify functions:build --src netlify/functions"
   # Output directory
   publish = "dist"
   # Functions directory
