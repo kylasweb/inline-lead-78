@@ -121,20 +121,34 @@ export const extractIdFromPath = (path: string): string | null => {
   return null;
 };
 
-// Basic authentication/authorization placeholder
+// Basic authentication/authorization
 export const authenticateRequest = (event: HandlerEvent): boolean => {
-  // TODO: Implement actual authentication logic
-  // For now, return true to allow all requests
-  // In production, validate JWT tokens or API keys here
-  
   const authHeader = event.headers.authorization;
+
   if (!authHeader) {
-    // For development, allow requests without auth
-    return true;
+    console.error("No authorization header provided");
+    return false;
   }
-  
-  // Example JWT validation would go here
-  return true;
+
+  try {
+    // Verify the JWT token (replace with your actual JWT verification logic)
+    // const decodedToken = verifyJwtToken(authHeader.split(' ')[1]); // Assuming "Bearer <token>" format
+    // Placeholder verification - replace with real logic
+    const decodedToken = { userId: 'testUser', role: 'admin' };
+
+    if (!decodedToken) {
+      console.error("Invalid JWT token");
+      return false;
+    }
+
+    // Attach user info to the event (optional, but useful)
+    (event as any).user = decodedToken;
+    return true;
+
+  } catch (error) {
+    console.error("Error verifying JWT:", error);
+    return false;
+  }
 };
 
 // Rate limiting placeholder

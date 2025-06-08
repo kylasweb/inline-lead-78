@@ -11,7 +11,6 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { db, withDatabase } from './utils/db';
 
 // User API Handler
 export const handler = async (
@@ -63,20 +62,23 @@ export const handler = async (
 
 // Get users (all or specific user)
 const handleGetUsers = async (userId?: string | null): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     if (userId) {
+      console.log('Attempting to retrieve user:', userId);
       // Get specific user
-      const user = await db.user.findById(userId);
-      if (!user) {
-        return errorResponse(404, 'User not found');
-      }
-      return successResponse(user);
+      // const user = await db.user.findById(userId); // Removed db usage
+      // if (!user) {
+      //   return errorResponse(404, 'User not found');
+      // }
+      // return successResponse(user);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } else {
       // Get all users
-      const users = await db.user.findMany();
-      return successResponse(users);
+      // const users = await db.user.findMany(); // Removed db usage
+      // return successResponse(users);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Create new user
@@ -98,21 +100,22 @@ const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> =
     return errorResponse(400, 'Invalid email format');
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
-      const user = await db.user.create({
-        email: body.email,
-        name: body.name,
-        role: body.role || 'USER',
-      });
-      return successResponse(user, 'User created successfully');
+      // const user = await db.user.create({ // Removed db usage
+      //   email: body.email,
+      //   name: body.name,
+      //   role: body.role || 'USER',
+      // });
+      // return successResponse(user, 'User created successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2002') {
         return errorResponse(409, 'User with this email already exists');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Update user
@@ -131,46 +134,48 @@ const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<Ha
     }
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if user exists
-      const existingUser = await db.user.findById(userId);
-      if (!existingUser) {
-        return errorResponse(404, 'User not found');
-      }
+      // const existingUser = await db.user.findById(userId); // Removed db usage
+      // if (!existingUser) {
+      //   return errorResponse(404, 'User not found');
+      // }
 
-      const updateData: any = {};
-      if (body.name) updateData.name = body.name;
-      if (body.role) updateData.role = body.role;
+      // const updateData: any = {};
+      // if (body.name) updateData.name = body.name;
+      // if (body.role) updateData.role = body.role;
 
-      const user = await db.user.update(userId, updateData);
-      return successResponse(user, 'User updated successfully');
+      // const user = await db.user.update(userId, updateData); // Removed db usage
+      // return successResponse(user, 'User updated successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2002') {
         return errorResponse(409, 'Email already exists');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Delete user
 const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if user exists
-      const existingUser = await db.user.findById(userId);
-      if (!existingUser) {
-        return errorResponse(404, 'User not found');
-      }
+      // const existingUser = await db.user.findById(userId); // Removed db usage
+      // if (!existingUser) {
+      //   return errorResponse(404, 'User not found');
+      // }
 
-      await db.user.delete(userId);
-      return successResponse(null, 'User deleted successfully');
+      // await db.user.delete(userId); // Removed db usage
+      // return successResponse(null, 'User deleted successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2003') {
         return errorResponse(409, 'Cannot delete user with associated records');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };

@@ -11,7 +11,6 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { db, withDatabase } from './utils/db';
 
 // Staff API Handler
 export const handler = async (
@@ -63,20 +62,23 @@ export const handler = async (
 
 // Get staff (all or specific staff member)
 const handleGetStaff = async (staffId?: string | null): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     if (staffId) {
+      console.log('Attempting to retrieve staff:', staffId);
       // Get specific staff member
-      const staff = await db.staff.findById(staffId);
-      if (!staff) {
-        return errorResponse(404, 'Staff member not found');
-      }
-      return successResponse(staff);
+      // const staff = await db.staff.findById(staffId); // Removed db usage
+      // if (!staff) {
+      //   return errorResponse(404, 'Staff member not found');
+      // }
+      // return successResponse(staff);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } else {
       // Get all staff
-      const staff = await db.staff.findMany();
-      return successResponse(staff);
+      // const staff = await db.staff.findMany(); // Removed db usage
+      // return successResponse(staff);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Create new staff member
@@ -98,24 +100,25 @@ const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> 
     return errorResponse(400, 'Invalid email format');
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
-      const staff = await db.staff.create({
-        email: body.email,
-        name: body.name,
-        role: body.role,
-        department: body.department || null,
-        phone: body.phone || null,
-        status: body.status || 'ACTIVE',
-      });
-      return successResponse(staff, 'Staff member created successfully');
+      // const staff = await db.staff.create({ // Removed db usage
+      //   email: body.email,
+      //   name: body.name,
+      //   role: body.role,
+      //   department: body.department || null,
+      //   phone: body.phone || null,
+      //   status: body.status || 'ACTIVE',
+      // });
+      // return successResponse(staff, 'Staff member created successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2002') {
         return errorResponse(409, 'Staff member with this email already exists');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Update staff member
@@ -134,50 +137,52 @@ const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<
     }
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if staff member exists
-      const existingStaff = await db.staff.findById(staffId);
-      if (!existingStaff) {
-        return errorResponse(404, 'Staff member not found');
-      }
+      // const existingStaff = await db.staff.findById(staffId); // Removed db usage
+      // if (!existingStaff) {
+      //   return errorResponse(404, 'Staff member not found');
+      // }
 
-      const updateData: any = {};
-      if (body.name) updateData.name = body.name;
-      if (body.email) updateData.email = body.email;
-      if (body.role) updateData.role = body.role;
-      if (body.department !== undefined) updateData.department = body.department;
-      if (body.phone !== undefined) updateData.phone = body.phone;
-      if (body.status) updateData.status = body.status;
+      // const updateData: any = {};
+      // if (body.name) updateData.name = body.name;
+      // if (body.email) updateData.email = body.email;
+      // if (body.role) updateData.role = body.role;
+      // if (body.department !== undefined) updateData.department = body.department;
+      // if (body.phone !== undefined) updateData.phone = body.phone;
+      // if (body.status) updateData.status = body.status;
 
-      const staff = await db.staff.update(staffId, updateData);
-      return successResponse(staff, 'Staff member updated successfully');
+      // const staff = await db.staff.update(staffId, updateData); // Removed db usage
+      // return successResponse(staff, 'Staff member updated successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2002') {
         return errorResponse(409, 'Email already exists');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Delete staff member
 const handleDeleteStaff = async (staffId: string): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if staff member exists
-      const existingStaff = await db.staff.findById(staffId);
-      if (!existingStaff) {
-        return errorResponse(404, 'Staff member not found');
-      }
+      // const existingStaff = await db.staff.findById(staffId); // Removed db usage
+      // if (!existingStaff) {
+      //   return errorResponse(404, 'Staff member not found');
+      // }
 
-      await db.staff.delete(staffId);
-      return successResponse(null, 'Staff member deleted successfully');
+      // await db.staff.delete(staffId); // Removed db usage
+      // return successResponse(null, 'Staff member deleted successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       if (error.code === 'P2003') {
         return errorResponse(409, 'Cannot delete staff member with associated records');
       }
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };

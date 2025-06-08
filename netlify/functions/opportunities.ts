@@ -11,7 +11,6 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { db, withDatabase } from './utils/db';
 
 // Opportunity API Handler
 export const handler = async (
@@ -66,29 +65,33 @@ const handleGetOpportunities = async (
   opportunityId?: string | null,
   event?: HandlerEvent
 ): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     if (opportunityId) {
+      console.log('Attempting to retrieve opportunity:', opportunityId);
       // Get specific opportunity
-      const opportunity = await db.opportunity.findById(opportunityId);
-      if (!opportunity) {
-        return errorResponse(404, 'Opportunity not found');
-      }
-      return successResponse(opportunity);
+      // const opportunity = await db.opportunity.findById(opportunityId); // Removed db usage
+      // if (!opportunity) {
+      //   return errorResponse(404, 'Opportunity not found');
+      // }
+      // return successResponse(opportunity);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } else {
       // Check for leadId query parameter
       const leadId = event?.queryStringParameters?.leadId;
       
       if (leadId) {
         // Get opportunities for specific lead
-        const opportunities = await db.opportunity.findByLead(leadId);
-        return successResponse(opportunities);
+        // const opportunities = await db.opportunity.findByLead(leadId); // Removed db usage
+        // return successResponse(opportunities);
+        return errorResponse(500, 'Not implemented yet'); // Placeholder
       } else {
         // Get all opportunities
-        const opportunities = await db.opportunity.findMany();
-        return successResponse(opportunities);
+        // const opportunities = await db.opportunity.findMany(); // Removed db usage
+        // return successResponse(opportunities);
+        return errorResponse(500, 'Not implemented yet'); // Placeholder
       }
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Create new opportunity
@@ -111,18 +114,18 @@ const handleCreateOpportunity = async (event: HandlerEvent): Promise<HandlerResp
   }
 
   // Validate lead exists
-  const lead = await db.lead.findById(body.leadId);
-  if (!lead) {
-    return errorResponse(400, 'Lead does not exist');
-  }
+  // const lead = await db.lead.findById(body.leadId); // Removed db usage
+  // if (!lead) {
+  //   return errorResponse(400, 'Lead does not exist');
+  // }
 
   // Validate assignedTo user exists if provided
-  if (body.assignedTo) {
-    const assignedUser = await db.user.findById(body.assignedTo);
-    if (!assignedUser) {
-      return errorResponse(400, 'Assigned user does not exist');
-    }
-  }
+  // if (body.assignedTo) {
+  //   const assignedUser = await db.user.findById(body.assignedTo); // Removed db usage
+  //   if (!assignedUser) {
+  //     return errorResponse(400, 'Assigned user does not exist');
+  //   }
+  // }
 
   // Validate stage if provided
   const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
@@ -130,20 +133,21 @@ const handleCreateOpportunity = async (event: HandlerEvent): Promise<HandlerResp
     return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
-      const opportunity = await db.opportunity.create({
-        title: body.title,
-        amount: amount,
-        stage: body.stage || 'PROSPECT',
-        leadId: body.leadId,
-        assignedTo: body.assignedTo || null,
-      });
-      return successResponse(opportunity, 'Opportunity created successfully');
+      // const opportunity = await db.opportunity.create({ // Removed db usage
+      //   title: body.title,
+      //   amount: amount,
+      //   stage: body.stage || 'PROSPECT',
+      //   leadId: body.leadId,
+      //   assignedTo: body.assignedTo || null,
+      // });
+      // return successResponse(opportunity, 'Opportunity created successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Update opportunity
@@ -166,12 +170,12 @@ const handleUpdateOpportunity = async (
   }
 
   // Validate assignedTo user exists if provided
-  if (body.assignedTo) {
-    const assignedUser = await db.user.findById(body.assignedTo);
-    if (!assignedUser) {
-      return errorResponse(400, 'Assigned user does not exist');
-    }
-  }
+  // if (body.assignedTo) {
+  //   const assignedUser = await db.user.findById(body.assignedTo); // Removed db usage
+  //   if (!assignedUser) {
+  //     return errorResponse(400, 'Assigned user does not exist');
+  //   }
+  // }
 
   // Validate stage if provided
   const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
@@ -179,42 +183,44 @@ const handleUpdateOpportunity = async (
     return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
   }
 
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if opportunity exists
-      const existingOpportunity = await db.opportunity.findById(opportunityId);
-      if (!existingOpportunity) {
-        return errorResponse(404, 'Opportunity not found');
-      }
+      // const existingOpportunity = await db.opportunity.findById(opportunityId); // Removed db usage
+      // if (!existingOpportunity) {
+      //   return errorResponse(404, 'Opportunity not found');
+      // }
 
-      const updateData: any = {};
-      if (body.title) updateData.title = body.title;
-      if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
-      if (body.stage) updateData.stage = body.stage;
-      if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
+      // const updateData: any = {};
+      // if (body.title) updateData.title = body.title;
+      // if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
+      // if (body.stage) updateData.stage = body.stage;
+      // if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
 
-      const opportunity = await db.opportunity.update(opportunityId, updateData);
-      return successResponse(opportunity, 'Opportunity updated successfully');
+      // const opportunity = await db.opportunity.update(opportunityId, updateData); // Removed db usage
+      // return successResponse(opportunity, 'Opportunity updated successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };
 
 // Delete opportunity
 const handleDeleteOpportunity = async (opportunityId: string): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
+  // return withDatabase(async () => { // Removed withDatabase
     try {
       // Check if opportunity exists
-      const existingOpportunity = await db.opportunity.findById(opportunityId);
-      if (!existingOpportunity) {
-        return errorResponse(404, 'Opportunity not found');
-      }
+      // const existingOpportunity = await db.opportunity.findById(opportunityId); // Removed db usage
+      // if (!existingOpportunity) {
+      //   return errorResponse(404, 'Opportunity not found');
+      // }
 
-      await db.opportunity.delete(opportunityId);
-      return successResponse(null, 'Opportunity deleted successfully');
+      // await db.opportunity.delete(opportunityId); // Removed db usage
+      // return successResponse(null, 'Opportunity deleted successfully');
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
     } catch (error: any) {
       throw error;
     }
-  });
+  // }); // Removed withDatabase
 };

@@ -11,7 +11,6 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { db, withDatabase } from './utils/db';
 
 // Lead API Handler
 export const handler = async (
@@ -63,20 +62,23 @@ export const handler = async (
 
 // Get leads (all or specific lead)
 const handleGetLeads = async (leadId?: string | null): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
-    if (leadId) {
-      // Get specific lead
-      const lead = await db.lead.findById(leadId);
-      if (!lead) {
-        return errorResponse(404, 'Lead not found');
-      }
-      return successResponse(lead);
-    } else {
-      // Get all leads with pagination support
-      const leads = await db.lead.findMany();
-      return successResponse(leads);
+  if (leadId) {
+    try {
+      console.log('Attempting to retrieve lead:', leadId);
+      // const leadString = await get({ key: leadId }); // Removed @netlify/blobs usage
+      // if (!leadString) {
+      //   return errorResponse(404, 'Lead not found');
+      // }
+      // const lead = JSON.parse(leadString);
+      // return successResponse(lead);
+      return errorResponse(500, 'Not implemented yet'); // Placeholder
+    } catch (error) {
+      console.error('Error getting lead from Blob Storage:', error);
+      return errorResponse(500, 'Error getting lead');
     }
-  });
+  } else {
+    return errorResponse(405, 'Method not allowed for listing all leads. Use GET with leadId.');
+  }
 };
 
 // Create new lead
@@ -98,32 +100,25 @@ const handleCreateLead = async (event: HandlerEvent): Promise<HandlerResponse> =
     return errorResponse(400, 'Invalid email format');
   }
 
-  // Validate assignedTo user exists if provided
-  if (body.assignedTo) {
-    const assignedUser = await db.user.findById(body.assignedTo);
-    if (!assignedUser) {
-      return errorResponse(400, 'Assigned user does not exist');
-    }
-  }
+  const leadId = crypto.randomUUID();
+  const lead = {
+    id: leadId,
+    name: body.name,
+    email: body.email,
+    phone: body.phone || null,
+    company: body.company || null,
+    status: body.status || 'NEW',
+    assignedTo: body.assignedTo || null,
+  };
 
-  return withDatabase(async () => {
-    try {
-      const lead = await db.lead.create({
-        name: body.name,
-        email: body.email,
-        phone: body.phone || null,
-        company: body.company || null,
-        status: body.status || 'NEW',
-        assignedTo: body.assignedTo || null,
-      });
-      return successResponse(lead, 'Lead created successfully');
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'Lead with this email already exists');
-      }
-      throw error;
-    }
-  });
+  try {
+    // await set({ key: leadId, value: JSON.stringify(lead) }); // Removed @netlify/blobs usage
+    // return successResponse(lead, 'Lead created successfully');
+    return errorResponse(500, 'Not implemented yet'); // Placeholder
+  } catch (error) {
+    console.error('Error creating lead in Blob Storage:', error);
+    return errorResponse(500, 'Error creating lead');
+  }
 };
 
 // Update lead
@@ -142,64 +137,37 @@ const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<Ha
     }
   }
 
-  // Validate assignedTo user exists if provided
-  if (body.assignedTo) {
-    const assignedUser = await db.user.findById(body.assignedTo);
-    if (!assignedUser) {
-      return errorResponse(400, 'Assigned user does not exist');
-    }
+  try {
+    // const leadString = await get({ key: leadId }); // Removed @netlify/blobs usage
+    // if (!leadString) {
+    //   return errorResponse(404, 'Lead not found');
+    // }
+    // let lead = JSON.parse(leadString);
+
+    // if (body.name) lead.name = body.name;
+    // if (body.email) lead.email = body.email;
+    // if (body.phone !== undefined) lead.phone = body.phone;
+    // if (body.company !== undefined) lead.company = body.company;
+    // if (body.status) lead.status = body.status;
+    // if (body.assignedTo !== undefined) lead.assignedTo = body.assignedTo;
+
+    // await set({ key: leadId, value: JSON.stringify(lead) }); // Removed @netlify/blobs usage
+    // return successResponse(lead, 'Lead updated successfully');
+    return errorResponse(500, 'Not implemented yet'); // Placeholder
+  } catch (error) {
+    console.error('Error updating lead in Blob Storage:', error);
+    return errorResponse(500, 'Error updating lead');
   }
-
-  // Validate status if provided
-  const validStatuses = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
-  if (body.status && !validStatuses.includes(body.status)) {
-    return errorResponse(400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
-  }
-
-  return withDatabase(async () => {
-    try {
-      // Check if lead exists
-      const existingLead = await db.lead.findById(leadId);
-      if (!existingLead) {
-        return errorResponse(404, 'Lead not found');
-      }
-
-      const updateData: any = {};
-      if (body.name) updateData.name = body.name;
-      if (body.email) updateData.email = body.email;
-      if (body.phone !== undefined) updateData.phone = body.phone;
-      if (body.company !== undefined) updateData.company = body.company;
-      if (body.status) updateData.status = body.status;
-      if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
-
-      const lead = await db.lead.update(leadId, updateData);
-      return successResponse(lead, 'Lead updated successfully');
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'Email already exists');
-      }
-      throw error;
-    }
-  });
 };
 
 // Delete lead
 const handleDeleteLead = async (leadId: string): Promise<HandlerResponse> => {
-  return withDatabase(async () => {
-    try {
-      // Check if lead exists
-      const existingLead = await db.lead.findById(leadId);
-      if (!existingLead) {
-        return errorResponse(404, 'Lead not found');
-      }
-
-      await db.lead.delete(leadId);
-      return successResponse(null, 'Lead deleted successfully');
-    } catch (error: any) {
-      if (error.code === 'P2003') {
-        return errorResponse(409, 'Cannot delete lead with associated opportunities');
-      }
-      throw error;
-    }
-  });
+  try {
+    // await remove({ key: leadId }); // Removed @netlify/blobs usage
+    // return successResponse(null, 'Lead deleted successfully');
+    return errorResponse(500, 'Not implemented yet'); // Placeholder
+  } catch (error) {
+    console.error('Error deleting lead from Blob Storage:', error);
+    return errorResponse(500, 'Error deleting lead');
+  }
 };
