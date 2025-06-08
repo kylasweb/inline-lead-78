@@ -29,5 +29,32 @@
   status = 200
 
 # Environment variables (will be set in Netlify dashboard)
-# DATABASE_URL - PostgreSQL connection string
 # JWT_SECRET - For authentication (if implementing JWT)
+
+# Netlify Blob Storage configuration
+[functions.environment]
+  # Enable Netlify Blobs for serverless storage
+  NETLIFY_BLOBS_CONTEXT = "production"
+
+# Function-specific settings
+[functions."users"]
+  # Blob stores: users, leads, opportunities, staff
+  included_files = ["netlify/functions/utils/**/*"]
+
+[functions."leads"]
+  included_files = ["netlify/functions/utils/**/*"]
+
+[functions."opportunities"]
+  included_files = ["netlify/functions/utils/**/*"]
+
+[functions."staff"]
+  included_files = ["netlify/functions/utils/**/*"]
+
+# Headers for better API performance
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"

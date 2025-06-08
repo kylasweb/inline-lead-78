@@ -3,12 +3,6 @@ import { PrismaClient } from '@prisma/client'
 // Declare global variable for development hot reloading
 declare global {
   var __prisma: PrismaClient | undefined
-  var process: {
-    env: {
-      NODE_ENV: 'development' | 'production' | 'test'
-      DATABASE_URL: string
-    }
-  }
 }
 
 // Initialize Prisma Client with Accelerate configuration

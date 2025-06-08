@@ -11,6 +11,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
+import { getStore } from '@netlify/blobs';
 
 // Staff API Handler
 export const handler = async (
@@ -62,23 +63,47 @@ export const handler = async (
 
 // Get staff (all or specific staff member)
 const handleGetStaff = async (staffId?: string | null): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    if (staffId) {
+  if (staffId) {
+    try {
       console.log('Attempting to retrieve staff:', staffId);
-      // Get specific staff member
-      // const staff = await db.staff.findById(staffId); // Removed db usage
-      // if (!staff) {
-      //   return errorResponse(404, 'Staff member not found');
-      // }
-      // return successResponse(staff);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } else {
-      // Get all staff
-      // const staff = await db.staff.findMany(); // Removed db usage
-      // return successResponse(staff);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
+      const store = getStore('staff');
+      const staffData = await store.get(staffId);
+      
+      if (!staffData) {
+        return errorResponse(404, 'Staff member not found');
+      }
+      
+      const staff = JSON.parse(staffData);
+      return successResponse(staff);
+    } catch (error) {
+      console.error('Error getting staff from Blob Storage:', error);
+      return errorResponse(500, 'Error getting staff member');
     }
-  // }); // Removed withDatabase
+  } else {
+    try {
+      // List all staff
+      console.log('Attempting to list all staff');
+      const store = getStore('staff');
+      const { blobs } = await store.list();
+      
+      const staff = [];
+      for (const blob of blobs) {
+        try {
+          const staffData = await store.get(blob.key);
+          if (staffData) {
+            staff.push(JSON.parse(staffData));
+          }
+        } catch (parseError) {
+          console.error(`Error parsing staff ${blob.key}:`, parseError);
+        }
+      }
+      
+      return successResponse(staff);
+    } catch (error) {
+      console.error('Error listing staff from Blob Storage:', error);
+      return errorResponse(500, 'Error listing staff');
+    }
+  }
 };
 
 // Create new staff member
@@ -100,25 +125,43 @@ const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> 
     return errorResponse(400, 'Invalid email format');
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // const staff = await db.staff.create({ // Removed db usage
-      //   email: body.email,
-      //   name: body.name,
-      //   role: body.role,
-      //   department: body.department || null,
-      //   phone: body.phone || null,
-      //   status: body.status || 'ACTIVE',
-      // });
-      // return successResponse(staff, 'Staff member created successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'Staff member with this email already exists');
+  // Check for duplicate email
+  try {
+    const store = getStore('staff');
+    const { blobs } = await store.list();
+    
+    for (const blob of blobs) {
+      try {
+        const existingStaffData = await store.get(blob.key);
+        if (existingStaffData) {
+          const existingStaff = JSON.parse(existingStaffData);
+          if (existingStaff.email === body.email) {
+            return errorResponse(409, 'Staff member with this email already exists');
+          }
+        }
+      } catch (parseError) {
+        console.error(`Error parsing staff ${blob.key}:`, parseError);
       }
-      throw error;
     }
-  // }); // Removed withDatabase
+
+    const staffId = crypto.randomUUID();
+    const staff = {
+      id: staffId,
+      email: body.email,
+      name: body.name,
+      role: body.role,
+      department: body.department || null,
+      phone: body.phone || null,
+      status: body.status || 'ACTIVE',
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.set(staffId, JSON.stringify(staff));
+    return successResponse(staff, 'Staff member created successfully');
+  } catch (error) {
+    console.error('Error creating staff in Blob Storage:', error);
+    return errorResponse(500, 'Error creating staff member');
+  }
 };
 
 // Update staff member
@@ -137,52 +180,71 @@ const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<
     }
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if staff member exists
-      // const existingStaff = await db.staff.findById(staffId); // Removed db usage
-      // if (!existingStaff) {
-      //   return errorResponse(404, 'Staff member not found');
-      // }
-
-      // const updateData: any = {};
-      // if (body.name) updateData.name = body.name;
-      // if (body.email) updateData.email = body.email;
-      // if (body.role) updateData.role = body.role;
-      // if (body.department !== undefined) updateData.department = body.department;
-      // if (body.phone !== undefined) updateData.phone = body.phone;
-      // if (body.status) updateData.status = body.status;
-
-      // const staff = await db.staff.update(staffId, updateData); // Removed db usage
-      // return successResponse(staff, 'Staff member updated successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'Email already exists');
-      }
-      throw error;
+  try {
+    const store = getStore('staff');
+    const staffData = await store.get(staffId);
+    
+    if (!staffData) {
+      return errorResponse(404, 'Staff member not found');
     }
-  // }); // Removed withDatabase
+    
+    const staff = JSON.parse(staffData);
+
+    // Check for duplicate email if email is being updated
+    if (body.email && body.email !== staff.email) {
+      const { blobs } = await store.list();
+      
+      for (const blob of blobs) {
+        if (blob.key !== staffId) {
+          try {
+            const existingStaffData = await store.get(blob.key);
+            if (existingStaffData) {
+              const existingStaff = JSON.parse(existingStaffData);
+              if (existingStaff.email === body.email) {
+                return errorResponse(409, 'Email already exists');
+              }
+            }
+          } catch (parseError) {
+            console.error(`Error parsing staff ${blob.key}:`, parseError);
+          }
+        }
+      }
+    }
+
+    // Update fields
+    if (body.name) staff.name = body.name;
+    if (body.email) staff.email = body.email;
+    if (body.role) staff.role = body.role;
+    if (body.department !== undefined) staff.department = body.department;
+    if (body.phone !== undefined) staff.phone = body.phone;
+    if (body.status) staff.status = body.status;
+    
+    // Add updated timestamp
+    staff.updatedAt = new Date().toISOString();
+
+    await store.set(staffId, JSON.stringify(staff));
+    return successResponse(staff, 'Staff member updated successfully');
+  } catch (error) {
+    console.error('Error updating staff in Blob Storage:', error);
+    return errorResponse(500, 'Error updating staff member');
+  }
 };
 
 // Delete staff member
 const handleDeleteStaff = async (staffId: string): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if staff member exists
-      // const existingStaff = await db.staff.findById(staffId); // Removed db usage
-      // if (!existingStaff) {
-      //   return errorResponse(404, 'Staff member not found');
-      // }
-
-      // await db.staff.delete(staffId); // Removed db usage
-      // return successResponse(null, 'Staff member deleted successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2003') {
-        return errorResponse(409, 'Cannot delete staff member with associated records');
-      }
-      throw error;
+  try {
+    const store = getStore('staff');
+    
+    // Check if staff member exists before deletion
+    const staffData = await store.get(staffId);
+    if (!staffData) {
+      return errorResponse(404, 'Staff member not found');
     }
-  // }); // Removed withDatabase
+    
+    await store.delete(staffId);
+    return successResponse(null, 'Staff member deleted successfully');
+  } catch (error) {
+    console.error('Error deleting staff from Blob Storage:', error);
+    return errorResponse(500, 'Error deleting staff member');
+  }
 };

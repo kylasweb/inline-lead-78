@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:functions": "netlify dev",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -15,8 +16,16 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
-    "build:functions": "netlify functions:build netlify/functions",
-    "build": "vite build && npm run build:functions"
+    "build:functions": "netlify functions:build --src netlify/functions",
+    "build": "vite build && npm run build:functions",
+    "functions:serve": "netlify functions:serve",
+    "functions:test": "netlify functions:invoke",
+    "blob:list": "netlify blobs:list",
+    "blob:get": "netlify blobs:get",
+    "blob:delete": "netlify blobs:delete",
+    "deploy:dev": "netlify deploy",
+    "deploy:prod": "netlify deploy --prod",
+    "test:api": "echo 'Use REST Client extension with netlify/functions/test-endpoints.http'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

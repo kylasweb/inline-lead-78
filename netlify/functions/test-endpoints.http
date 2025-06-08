@@ -1,184 +1,424 @@
-### Test file for Netlify Functions API endpoints
+### Netlify Blob Integration API Test Endpoints
 ### Use with REST Client extension in VS Code
+### Replace {{baseUrl}} with your actual base URL
 
-@baseUrl = https://your-site.netlify.app/.netlify/functions
-# For local development: http://localhost:8888/.netlify/functions
+@baseUrl = http://localhost:8888/.netlify/functions
+# For production: @baseUrl = https://your-site.netlify.app/.netlify/functions
+@token = your-bearer-token-here
 
-### Users API Tests
+### =========================================
+### USERS API TESTS
+### =========================================
 
-# Get all users
+### Get all users
 GET {{baseUrl}}/users
-Content-Type: application/json
+Authorization: Bearer {{token}}
 
-###
+### Get specific user
+GET {{baseUrl}}/users/123e4567-e89b-12d3-a456-426614174000
+Authorization: Bearer {{token}}
 
-# Get specific user (replace with actual user ID)
-GET {{baseUrl}}/users/user-id-here
-Content-Type: application/json
-
-###
-
-# Create new user
+### Create new user
 POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "John Doe",
   "email": "john.doe@example.com",
-  "role": "USER"
-}
-
-###
-
-# Update user (replace with actual user ID)
-PUT {{baseUrl}}/users/user-id-here
-Content-Type: application/json
-
-{
-  "name": "John Updated",
+  "name": "John Doe",
   "role": "ADMIN"
 }
 
-###
-
-# Delete user (replace with actual user ID)
-DELETE {{baseUrl}}/users/user-id-here
+### Create user - minimal required fields
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
-###
+{
+  "email": "jane.smith@example.com",
+  "name": "Jane Smith"
+}
 
-### Leads API Tests
+### Update user
+PUT {{baseUrl}}/users/123e4567-e89b-12d3-a456-426614174000
+Authorization: Bearer {{token}}
+Content-Type: application/json
 
-# Get all leads
+{
+  "name": "John Doe Updated",
+  "role": "USER"
+}
+
+### Delete user
+DELETE {{baseUrl}}/users/123e4567-e89b-12d3-a456-426614174000
+Authorization: Bearer {{token}}
+
+### =========================================
+### LEADS API TESTS
+### =========================================
+
+### Get all leads
 GET {{baseUrl}}/leads
-Content-Type: application/json
+Authorization: Bearer {{token}}
 
-###
+### Get specific lead
+GET {{baseUrl}}/leads/456e7890-e89b-12d3-a456-426614174001
+Authorization: Bearer {{token}}
 
-# Get specific lead (replace with actual lead ID)
-GET {{baseUrl}}/leads/lead-id-here
-Content-Type: application/json
-
-###
-
-# Create new lead
+### Create new lead - complete
 POST {{baseUrl}}/leads
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "Jane Smith",
-  "email": "jane.smith@company.com",
-  "phone": "+1234567890",
-  "company": "ACME Corporation",
-  "status": "NEW"
-}
-
-###
-
-# Update lead (replace with actual lead ID)
-PUT {{baseUrl}}/leads/lead-id-here
-Content-Type: application/json
-
-{
+  "name": "Acme Corporation",
+  "email": "contact@acme.com",
+  "phone": "+1-555-0123",
+  "company": "Acme Corp",
   "status": "QUALIFIED",
-  "assignedTo": "user-id-here"
+  "assignedTo": "123e4567-e89b-12d3-a456-426614174000"
 }
 
-###
-
-# Delete lead (replace with actual lead ID)
-DELETE {{baseUrl}}/leads/lead-id-here
+### Create lead - minimal required fields
+POST {{baseUrl}}/leads
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
-###
+{
+  "name": "Tech Startup Inc",
+  "email": "hello@techstartup.com"
+}
 
-### Opportunities API Tests
+### Update lead status
+PUT {{baseUrl}}/leads/456e7890-e89b-12d3-a456-426614174001
+Authorization: Bearer {{token}}
+Content-Type: application/json
 
-# Get all opportunities
+{
+  "status": "CONVERTED",
+  "assignedTo": "789e0123-e89b-12d3-a456-426614174002"
+}
+
+### Update lead details
+PUT {{baseUrl}}/leads/456e7890-e89b-12d3-a456-426614174001
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "phone": "+1-555-9999",
+  "company": "Acme Corporation Ltd"
+}
+
+### Delete lead
+DELETE {{baseUrl}}/leads/456e7890-e89b-12d3-a456-426614174001
+Authorization: Bearer {{token}}
+
+### =========================================
+### OPPORTUNITIES API TESTS
+### =========================================
+
+### Get all opportunities
 GET {{baseUrl}}/opportunities
-Content-Type: application/json
+Authorization: Bearer {{token}}
 
-###
+### Get opportunities by lead ID
+GET {{baseUrl}}/opportunities?leadId=456e7890-e89b-12d3-a456-426614174001
+Authorization: Bearer {{token}}
 
-# Get opportunities for specific lead
-GET {{baseUrl}}/opportunities?leadId=lead-id-here
-Content-Type: application/json
+### Get specific opportunity
+GET {{baseUrl}}/opportunities/789e0123-e89b-12d3-a456-426614174002
+Authorization: Bearer {{token}}
 
-###
-
-# Get specific opportunity (replace with actual opportunity ID)
-GET {{baseUrl}}/opportunities/opportunity-id-here
-Content-Type: application/json
-
-###
-
-# Create new opportunity
+### Create new opportunity - complete
 POST {{baseUrl}}/opportunities
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "title": "Software License Deal",
-  "amount": 50000.00,
-  "stage": "PROSPECT",
-  "leadId": "lead-id-here",
-  "assignedTo": "user-id-here"
-}
-
-###
-
-# Update opportunity (replace with actual opportunity ID)
-PUT {{baseUrl}}/opportunities/opportunity-id-here
-Content-Type: application/json
-
-{
+  "title": "Website Redesign Project",
+  "amount": 25000.50,
   "stage": "PROPOSAL",
-  "amount": 55000.00
+  "leadId": "456e7890-e89b-12d3-a456-426614174001",
+  "assignedTo": "123e4567-e89b-12d3-a456-426614174000"
+}
+
+### Create opportunity - minimal required fields
+POST {{baseUrl}}/opportunities
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Software Development Contract",
+  "amount": 50000,
+  "leadId": "456e7890-e89b-12d3-a456-426614174001"
+}
+
+### Update opportunity stage
+PUT {{baseUrl}}/opportunities/789e0123-e89b-12d3-a456-426614174002
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stage": "NEGOTIATION",
+  "amount": 27500.00
+}
+
+### Close opportunity as won
+PUT {{baseUrl}}/opportunities/789e0123-e89b-12d3-a456-426614174002
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stage": "CLOSED_WON"
+}
+
+### Delete opportunity
+DELETE {{baseUrl}}/opportunities/789e0123-e89b-12d3-a456-426614174002
+Authorization: Bearer {{token}}
+
+### =========================================
+### STAFF API TESTS
+### =========================================
+
+### Get all staff
+GET {{baseUrl}}/staff
+Authorization: Bearer {{token}}
+
+### Get specific staff member
+GET {{baseUrl}}/staff/abc1234d-e89b-12d3-a456-426614174003
+Authorization: Bearer {{token}}
+
+### Create new staff member - complete
+POST {{baseUrl}}/staff
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "alice.johnson@company.com",
+  "name": "Alice Johnson",
+  "role": "Sales Manager",
+  "department": "Sales",
+  "phone": "+1-555-0156",
+  "status": "ACTIVE"
+}
+
+### Create staff member - minimal required fields
+POST {{baseUrl}}/staff
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "bob.wilson@company.com",
+  "name": "Bob Wilson",
+  "role": "Developer"
+}
+
+### Update staff member
+PUT {{baseUrl}}/staff/abc1234d-e89b-12d3-a456-426614174003
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "department": "Engineering",
+  "role": "Senior Developer",
+  "phone": "+1-555-0199"
+}
+
+### Deactivate staff member
+PUT {{baseUrl}}/staff/abc1234d-e89b-12d3-a456-426614174003
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+
+### Delete staff member
+DELETE {{baseUrl}}/staff/abc1234d-e89b-12d3-a456-426614174003
+Authorization: Bearer {{token}}
+
+### =========================================
+### ERROR HANDLING TESTS
+### =========================================
+
+### Test missing authorization
+GET {{baseUrl}}/users
+
+### Test invalid authorization
+GET {{baseUrl}}/users
+Authorization: Bearer invalid-token
+
+### Test missing required fields - user
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Missing Email"
+}
+
+### Test invalid email format
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "name": "Invalid Email User"
+}
+
+### Test duplicate email
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "john.doe@example.com",
+  "name": "Duplicate Email User"
+}
+
+### Test invalid opportunity amount
+POST {{baseUrl}}/opportunities
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Invalid Amount Opportunity",
+  "amount": -1000,
+  "leadId": "456e7890-e89b-12d3-a456-426614174001"
+}
+
+### Test invalid opportunity stage
+POST {{baseUrl}}/opportunities
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Invalid Stage Opportunity",
+  "amount": 5000,
+  "stage": "INVALID_STAGE",
+  "leadId": "456e7890-e89b-12d3-a456-426614174001"
+}
+
+### Test non-existent resource
+GET {{baseUrl}}/users/non-existent-id
+Authorization: Bearer {{token}}
+
+### Test invalid HTTP method
+PATCH {{baseUrl}}/users
+Authorization: Bearer {{token}}
+
+### =========================================
+### CORS PREFLIGHT TESTS
+### =========================================
+
+### Test CORS preflight for users
+OPTIONS {{baseUrl}}/users
+Origin: http://localhost:5173
+
+### Test CORS preflight for leads
+OPTIONS {{baseUrl}}/leads
+Origin: http://localhost:5173
+
+### =========================================
+### BATCH TESTING SCENARIOS
+### =========================================
+
+### 1. Complete user workflow
+# Create user -> Update user -> Get user -> Delete user
+
+### 2. Lead to opportunity workflow
+# Create lead -> Create opportunity for lead -> Update opportunity -> Close opportunity
+
+### 3. Staff management workflow
+# Create staff -> Assign to lead -> Update staff details -> Deactivate staff
+
+### =========================================
+### PERFORMANCE TESTING
+### =========================================
+
+### Test with large dataset - create multiple users
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "user1@test.com",
+  "name": "Test User 1"
 }
 
 ###
-
-# Delete opportunity (replace with actual opportunity ID)
-DELETE {{baseUrl}}/opportunities/opportunity-id-here
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
+{
+  "email": "user2@test.com",
+  "name": "Test User 2"
+}
+
 ###
-
-### Analytics API Tests
-
-# Get analytics dashboard data
-GET {{baseUrl}}/analytics
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
-###
+{
+  "email": "user3@test.com",
+  "name": "Test User 3"
+}
 
-### CORS Preflight Tests
+### Then test listing all users
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
 
-# Test CORS for users endpoint
-OPTIONS {{baseUrl}}/users
-Origin: http://localhost:3000
-Access-Control-Request-Method: POST
-Access-Control-Request-Headers: Content-Type
+### =========================================
+### EDGE CASE TESTS
+### =========================================
 
-###
+### Test empty request body
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
 
-# Test CORS for leads endpoint
-OPTIONS {{baseUrl}}/leads
-Origin: http://localhost:3000
-Access-Control-Request-Method: PUT
-Access-Control-Request-Headers: Content-Type
+{}
 
-###
+### Test malformed JSON
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
 
-# Test CORS for opportunities endpoint
-OPTIONS {{baseUrl}}/opportunities
-Origin: http://localhost:3000
-Access-Control-Request-Method: DELETE
-Access-Control-Request-Headers: Content-Type
+{
+  "email": "test@test.com"
+  "name": "Missing Comma"
+}
 
-###
+### Test very long strings
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
 
-# Test CORS for analytics endpoint
-OPTIONS {{baseUrl}}/analytics
-Origin: http://localhost:3000
-Access-Control-Request-Method: GET
-Access-Control-Request-Headers: Content-Type
+{
+  "email": "verylongemail@verylongdomainnamethatshouldstillbevalidbutverylongindeed.com",
+  "name": "Very Long Name That Tests The System's Ability To Handle Long String Values"
+}
+
+### Test special characters
+POST {{baseUrl}}/leads
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Company with Special Characters: &<>\"'",
+  "email": "test+special@example.com"
+}
+
+### Test Unicode characters
+POST {{baseUrl}}/staff
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "unicode.test@example.com",
+  "name": "José García-Martínez",
+  "role": "Développeur Senior"
+}

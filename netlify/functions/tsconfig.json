@@ -21,8 +21,6 @@
   },
   "include": [
     "**/*.ts",
-    "../../src/lib/db.ts",
-    "../../src/types/prisma.d.ts",
     "node_modules/@prisma/client/index.d.ts"
   ],
   "exclude": [

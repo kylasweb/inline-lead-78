@@ -11,6 +11,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
+import { getStore } from '@netlify/blobs';
 
 // Opportunity API Handler
 export const handler = async (
@@ -65,33 +66,52 @@ const handleGetOpportunities = async (
   opportunityId?: string | null,
   event?: HandlerEvent
 ): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    if (opportunityId) {
+  if (opportunityId) {
+    try {
       console.log('Attempting to retrieve opportunity:', opportunityId);
-      // Get specific opportunity
-      // const opportunity = await db.opportunity.findById(opportunityId); // Removed db usage
-      // if (!opportunity) {
-      //   return errorResponse(404, 'Opportunity not found');
-      // }
-      // return successResponse(opportunity);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } else {
+      const store = getStore('opportunities');
+      const opportunityData = await store.get(opportunityId);
+      
+      if (!opportunityData) {
+        return errorResponse(404, 'Opportunity not found');
+      }
+      
+      const opportunity = JSON.parse(opportunityData);
+      return successResponse(opportunity);
+    } catch (error) {
+      console.error('Error getting opportunity from Blob Storage:', error);
+      return errorResponse(500, 'Error getting opportunity');
+    }
+  } else {
+    try {
       // Check for leadId query parameter
       const leadId = event?.queryStringParameters?.leadId;
       
-      if (leadId) {
-        // Get opportunities for specific lead
-        // const opportunities = await db.opportunity.findByLead(leadId); // Removed db usage
-        // return successResponse(opportunities);
-        return errorResponse(500, 'Not implemented yet'); // Placeholder
-      } else {
-        // Get all opportunities
-        // const opportunities = await db.opportunity.findMany(); // Removed db usage
-        // return successResponse(opportunities);
-        return errorResponse(500, 'Not implemented yet'); // Placeholder
+      const store = getStore('opportunities');
+      const { blobs } = await store.list();
+      
+      const opportunities = [];
+      for (const blob of blobs) {
+        try {
+          const opportunityData = await store.get(blob.key);
+          if (opportunityData) {
+            const opportunity = JSON.parse(opportunityData);
+            // If leadId is specified, filter by leadId
+            if (!leadId || opportunity.leadId === leadId) {
+              opportunities.push(opportunity);
+            }
+          }
+        } catch (parseError) {
+          console.error(`Error parsing opportunity ${blob.key}:`, parseError);
+        }
       }
+      
+      return successResponse(opportunities);
+    } catch (error) {
+      console.error('Error listing opportunities from Blob Storage:', error);
+      return errorResponse(500, 'Error listing opportunities');
     }
-  // }); // Removed withDatabase
+  }
 };
 
 // Create new opportunity
@@ -113,41 +133,31 @@ const handleCreateOpportunity = async (event: HandlerEvent): Promise<HandlerResp
     return errorResponse(400, 'Amount must be a positive number');
   }
 
-  // Validate lead exists
-  // const lead = await db.lead.findById(body.leadId); // Removed db usage
-  // if (!lead) {
-  //   return errorResponse(400, 'Lead does not exist');
-  // }
-
-  // Validate assignedTo user exists if provided
-  // if (body.assignedTo) {
-  //   const assignedUser = await db.user.findById(body.assignedTo); // Removed db usage
-  //   if (!assignedUser) {
-  //     return errorResponse(400, 'Assigned user does not exist');
-  //   }
-  // }
-
   // Validate stage if provided
   const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
   if (body.stage && validStages.indexOf(body.stage) === -1) {
     return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // const opportunity = await db.opportunity.create({ // Removed db usage
-      //   title: body.title,
-      //   amount: amount,
-      //   stage: body.stage || 'PROSPECT',
-      //   leadId: body.leadId,
-      //   assignedTo: body.assignedTo || null,
-      // });
-      // return successResponse(opportunity, 'Opportunity created successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      throw error;
-    }
-  // }); // Removed withDatabase
+  const opportunityId = crypto.randomUUID();
+  const opportunity = {
+    id: opportunityId,
+    title: body.title,
+    amount: amount,
+    stage: body.stage || 'PROSPECT',
+    leadId: body.leadId,
+    assignedTo: body.assignedTo || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const store = getStore('opportunities');
+    await store.set(opportunityId, JSON.stringify(opportunity));
+    return successResponse(opportunity, 'Opportunity created successfully');
+  } catch (error) {
+    console.error('Error creating opportunity in Blob Storage:', error);
+    return errorResponse(500, 'Error creating opportunity');
+  }
 };
 
 // Update opportunity
@@ -169,58 +179,55 @@ const handleUpdateOpportunity = async (
     }
   }
 
-  // Validate assignedTo user exists if provided
-  // if (body.assignedTo) {
-  //   const assignedUser = await db.user.findById(body.assignedTo); // Removed db usage
-  //   if (!assignedUser) {
-  //     return errorResponse(400, 'Assigned user does not exist');
-  //   }
-  // }
-
   // Validate stage if provided
   const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
   if (body.stage && validStages.indexOf(body.stage) === -1) {
     return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if opportunity exists
-      // const existingOpportunity = await db.opportunity.findById(opportunityId); // Removed db usage
-      // if (!existingOpportunity) {
-      //   return errorResponse(404, 'Opportunity not found');
-      // }
-
-      // const updateData: any = {};
-      // if (body.title) updateData.title = body.title;
-      // if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
-      // if (body.stage) updateData.stage = body.stage;
-      // if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
-
-      // const opportunity = await db.opportunity.update(opportunityId, updateData); // Removed db usage
-      // return successResponse(opportunity, 'Opportunity updated successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      throw error;
+  try {
+    const store = getStore('opportunities');
+    const opportunityData = await store.get(opportunityId);
+    
+    if (!opportunityData) {
+      return errorResponse(404, 'Opportunity not found');
     }
-  // }); // Removed withDatabase
+    
+    const opportunity = JSON.parse(opportunityData);
+
+    // Update fields
+    if (body.title) opportunity.title = body.title;
+    if (body.amount !== undefined) opportunity.amount = parseFloat(body.amount);
+    if (body.stage) opportunity.stage = body.stage;
+    if (body.leadId) opportunity.leadId = body.leadId;
+    if (body.assignedTo !== undefined) opportunity.assignedTo = body.assignedTo;
+    
+    // Add updated timestamp
+    opportunity.updatedAt = new Date().toISOString();
+
+    await store.set(opportunityId, JSON.stringify(opportunity));
+    return successResponse(opportunity, 'Opportunity updated successfully');
+  } catch (error) {
+    console.error('Error updating opportunity in Blob Storage:', error);
+    return errorResponse(500, 'Error updating opportunity');
+  }
 };
 
 // Delete opportunity
 const handleDeleteOpportunity = async (opportunityId: string): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if opportunity exists
-      // const existingOpportunity = await db.opportunity.findById(opportunityId); // Removed db usage
-      // if (!existingOpportunity) {
-      //   return errorResponse(404, 'Opportunity not found');
-      // }
-
-      // await db.opportunity.delete(opportunityId); // Removed db usage
-      // return successResponse(null, 'Opportunity deleted successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      throw error;
+  try {
+    const store = getStore('opportunities');
+    
+    // Check if opportunity exists before deletion
+    const opportunityData = await store.get(opportunityId);
+    if (!opportunityData) {
+      return errorResponse(404, 'Opportunity not found');
     }
-  // }); // Removed withDatabase
+    
+    await store.delete(opportunityId);
+    return successResponse(null, 'Opportunity deleted successfully');
+  } catch (error) {
+    console.error('Error deleting opportunity from Blob Storage:', error);
+    return errorResponse(500, 'Error deleting opportunity');
+  }
 };

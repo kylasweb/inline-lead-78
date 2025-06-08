@@ -11,6 +11,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
+import { getStore } from '@netlify/blobs';
 
 // User API Handler
 export const handler = async (
@@ -62,23 +63,47 @@ export const handler = async (
 
 // Get users (all or specific user)
 const handleGetUsers = async (userId?: string | null): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    if (userId) {
+  if (userId) {
+    try {
       console.log('Attempting to retrieve user:', userId);
-      // Get specific user
-      // const user = await db.user.findById(userId); // Removed db usage
-      // if (!user) {
-      //   return errorResponse(404, 'User not found');
-      // }
-      // return successResponse(user);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } else {
-      // Get all users
-      // const users = await db.user.findMany(); // Removed db usage
-      // return successResponse(users);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
+      const store = getStore('users');
+      const userData = await store.get(userId);
+      
+      if (!userData) {
+        return errorResponse(404, 'User not found');
+      }
+      
+      const user = JSON.parse(userData);
+      return successResponse(user);
+    } catch (error) {
+      console.error('Error getting user from Blob Storage:', error);
+      return errorResponse(500, 'Error getting user');
     }
-  // }); // Removed withDatabase
+  } else {
+    try {
+      // List all users
+      console.log('Attempting to list all users');
+      const store = getStore('users');
+      const { blobs } = await store.list();
+      
+      const users = [];
+      for (const blob of blobs) {
+        try {
+          const userData = await store.get(blob.key);
+          if (userData) {
+            users.push(JSON.parse(userData));
+          }
+        } catch (parseError) {
+          console.error(`Error parsing user ${blob.key}:`, parseError);
+        }
+      }
+      
+      return successResponse(users);
+    } catch (error) {
+      console.error('Error listing users from Blob Storage:', error);
+      return errorResponse(500, 'Error listing users');
+    }
+  }
 };
 
 // Create new user
@@ -100,22 +125,40 @@ const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> =
     return errorResponse(400, 'Invalid email format');
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // const user = await db.user.create({ // Removed db usage
-      //   email: body.email,
-      //   name: body.name,
-      //   role: body.role || 'USER',
-      // });
-      // return successResponse(user, 'User created successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'User with this email already exists');
+  // Check for duplicate email
+  try {
+    const store = getStore('users');
+    const { blobs } = await store.list();
+    
+    for (const blob of blobs) {
+      try {
+        const existingUserData = await store.get(blob.key);
+        if (existingUserData) {
+          const existingUser = JSON.parse(existingUserData);
+          if (existingUser.email === body.email) {
+            return errorResponse(409, 'User with this email already exists');
+          }
+        }
+      } catch (parseError) {
+        console.error(`Error parsing user ${blob.key}:`, parseError);
       }
-      throw error;
     }
-  // }); // Removed withDatabase
+
+    const userId = crypto.randomUUID();
+    const user = {
+      id: userId,
+      email: body.email,
+      name: body.name,
+      role: body.role || 'USER',
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.set(userId, JSON.stringify(user));
+    return successResponse(user, 'User created successfully');
+  } catch (error) {
+    console.error('Error creating user in Blob Storage:', error);
+    return errorResponse(500, 'Error creating user');
+  }
 };
 
 // Update user
@@ -134,48 +177,68 @@ const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<Ha
     }
   }
 
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if user exists
-      // const existingUser = await db.user.findById(userId); // Removed db usage
-      // if (!existingUser) {
-      //   return errorResponse(404, 'User not found');
-      // }
-
-      // const updateData: any = {};
-      // if (body.name) updateData.name = body.name;
-      // if (body.role) updateData.role = body.role;
-
-      // const user = await db.user.update(userId, updateData); // Removed db usage
-      // return successResponse(user, 'User updated successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        return errorResponse(409, 'Email already exists');
-      }
-      throw error;
+  try {
+    const store = getStore('users');
+    const userData = await store.get(userId);
+    
+    if (!userData) {
+      return errorResponse(404, 'User not found');
     }
-  // }); // Removed withDatabase
+    
+    const user = JSON.parse(userData);
+
+    // Check for duplicate email if email is being updated
+    if (body.email && body.email !== user.email) {
+      const { blobs } = await store.list();
+      
+      for (const blob of blobs) {
+        if (blob.key !== userId) {
+          try {
+            const existingUserData = await store.get(blob.key);
+            if (existingUserData) {
+              const existingUser = JSON.parse(existingUserData);
+              if (existingUser.email === body.email) {
+                return errorResponse(409, 'Email already exists');
+              }
+            }
+          } catch (parseError) {
+            console.error(`Error parsing user ${blob.key}:`, parseError);
+          }
+        }
+      }
+    }
+
+    // Update fields
+    if (body.name) user.name = body.name;
+    if (body.email) user.email = body.email;
+    if (body.role) user.role = body.role;
+    
+    // Add updated timestamp
+    user.updatedAt = new Date().toISOString();
+
+    await store.set(userId, JSON.stringify(user));
+    return successResponse(user, 'User updated successfully');
+  } catch (error) {
+    console.error('Error updating user in Blob Storage:', error);
+    return errorResponse(500, 'Error updating user');
+  }
 };
 
 // Delete user
 const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
-  // return withDatabase(async () => { // Removed withDatabase
-    try {
-      // Check if user exists
-      // const existingUser = await db.user.findById(userId); // Removed db usage
-      // if (!existingUser) {
-      //   return errorResponse(404, 'User not found');
-      // }
-
-      // await db.user.delete(userId); // Removed db usage
-      // return successResponse(null, 'User deleted successfully');
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
-    } catch (error: any) {
-      if (error.code === 'P2003') {
-        return errorResponse(409, 'Cannot delete user with associated records');
-      }
-      throw error;
+  try {
+    const store = getStore('users');
+    
+    // Check if user exists before deletion
+    const userData = await store.get(userId);
+    if (!userData) {
+      return errorResponse(404, 'User not found');
     }
-  // }); // Removed withDatabase
+    
+    await store.delete(userId);
+    return successResponse(null, 'User deleted successfully');
+  } catch (error) {
+    console.error('Error deleting user from Blob Storage:', error);
+    return errorResponse(500, 'Error deleting user');
+  }
 };

@@ -11,6 +11,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
+import { getStore } from '@netlify/blobs';
 
 // Lead API Handler
 export const handler = async (
@@ -65,19 +66,43 @@ const handleGetLeads = async (leadId?: string | null): Promise<HandlerResponse> 
   if (leadId) {
     try {
       console.log('Attempting to retrieve lead:', leadId);
-      // const leadString = await get({ key: leadId }); // Removed @netlify/blobs usage
-      // if (!leadString) {
-      //   return errorResponse(404, 'Lead not found');
-      // }
-      // const lead = JSON.parse(leadString);
-      // return successResponse(lead);
-      return errorResponse(500, 'Not implemented yet'); // Placeholder
+      const store = getStore('leads');
+      const leadData = await store.get(leadId);
+      
+      if (!leadData) {
+        return errorResponse(404, 'Lead not found');
+      }
+      
+      const lead = JSON.parse(leadData);
+      return successResponse(lead);
     } catch (error) {
       console.error('Error getting lead from Blob Storage:', error);
       return errorResponse(500, 'Error getting lead');
     }
   } else {
-    return errorResponse(405, 'Method not allowed for listing all leads. Use GET with leadId.');
+    try {
+      // List all leads
+      console.log('Attempting to list all leads');
+      const store = getStore('leads');
+      const { blobs } = await store.list();
+      
+      const leads = [];
+      for (const blob of blobs) {
+        try {
+          const leadData = await store.get(blob.key);
+          if (leadData) {
+            leads.push(JSON.parse(leadData));
+          }
+        } catch (parseError) {
+          console.error(`Error parsing lead ${blob.key}:`, parseError);
+        }
+      }
+      
+      return successResponse(leads);
+    } catch (error) {
+      console.error('Error listing leads from Blob Storage:', error);
+      return errorResponse(500, 'Error listing leads');
+    }
   }
 };
 
@@ -109,12 +134,13 @@ const handleCreateLead = async (event: HandlerEvent): Promise<HandlerResponse> =
     company: body.company || null,
     status: body.status || 'NEW',
     assignedTo: body.assignedTo || null,
+    createdAt: new Date().toISOString(),
   };
 
   try {
-    // await set({ key: leadId, value: JSON.stringify(lead) }); // Removed @netlify/blobs usage
-    // return successResponse(lead, 'Lead created successfully');
-    return errorResponse(500, 'Not implemented yet'); // Placeholder
+    const store = getStore('leads');
+    await store.set(leadId, JSON.stringify(lead));
+    return successResponse(lead, 'Lead created successfully');
   } catch (error) {
     console.error('Error creating lead in Blob Storage:', error);
     return errorResponse(500, 'Error creating lead');
@@ -138,22 +164,28 @@ const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<Ha
   }
 
   try {
-    // const leadString = await get({ key: leadId }); // Removed @netlify/blobs usage
-    // if (!leadString) {
-    //   return errorResponse(404, 'Lead not found');
-    // }
-    // let lead = JSON.parse(leadString);
+    const store = getStore('leads');
+    const leadData = await store.get(leadId);
+    
+    if (!leadData) {
+      return errorResponse(404, 'Lead not found');
+    }
+    
+    const lead = JSON.parse(leadData);
 
-    // if (body.name) lead.name = body.name;
-    // if (body.email) lead.email = body.email;
-    // if (body.phone !== undefined) lead.phone = body.phone;
-    // if (body.company !== undefined) lead.company = body.company;
-    // if (body.status) lead.status = body.status;
-    // if (body.assignedTo !== undefined) lead.assignedTo = body.assignedTo;
+    // Update fields
+    if (body.name) lead.name = body.name;
+    if (body.email) lead.email = body.email;
+    if (body.phone !== undefined) lead.phone = body.phone;
+    if (body.company !== undefined) lead.company = body.company;
+    if (body.status) lead.status = body.status;
+    if (body.assignedTo !== undefined) lead.assignedTo = body.assignedTo;
+    
+    // Add updated timestamp
+    lead.updatedAt = new Date().toISOString();
 
-    // await set({ key: leadId, value: JSON.stringify(lead) }); // Removed @netlify/blobs usage
-    // return successResponse(lead, 'Lead updated successfully');
-    return errorResponse(500, 'Not implemented yet'); // Placeholder
+    await store.set(leadId, JSON.stringify(lead));
+    return successResponse(lead, 'Lead updated successfully');
   } catch (error) {
     console.error('Error updating lead in Blob Storage:', error);
     return errorResponse(500, 'Error updating lead');
@@ -163,9 +195,16 @@ const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<Ha
 // Delete lead
 const handleDeleteLead = async (leadId: string): Promise<HandlerResponse> => {
   try {
-    // await remove({ key: leadId }); // Removed @netlify/blobs usage
-    // return successResponse(null, 'Lead deleted successfully');
-    return errorResponse(500, 'Not implemented yet'); // Placeholder
+    const store = getStore('leads');
+    
+    // Check if lead exists before deletion
+    const leadData = await store.get(leadId);
+    if (!leadData) {
+      return errorResponse(404, 'Lead not found');
+    }
+    
+    await store.delete(leadId);
+    return successResponse(null, 'Lead deleted successfully');
   } catch (error) {
     console.error('Error deleting lead from Blob Storage:', error);
     return errorResponse(500, 'Error deleting lead');
