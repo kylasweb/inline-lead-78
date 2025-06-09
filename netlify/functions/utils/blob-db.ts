@@ -1,11 +1,18 @@
 import fetch from 'node-fetch';
 import { getStore } from '@netlify/blobs';
+import { 
+  getSerializedSize, 
+  SIZE_LIMITS, 
+  storeInChunks, 
+  getFromChunks, 
+  deleteChunkedData 
+} from './blob-size-utils';
 
 // Initialize blob stores for each entity type
-const getUserStore = () => getStore({ name: 'users', fetch });
-const getLeadStore = () => getStore({ name: 'leads', fetch });
-const getOpportunityStore = () => getStore({ name: 'opportunities', fetch });
-const getStaffStore = () => getStore({ name: 'staff', fetch });
+const getUserStore = () => getStore({ name: 'users', fetch: fetch as unknown as typeof global.fetch });
+const getLeadStore = () => getStore({ name: 'leads', fetch: fetch as unknown as typeof global.fetch });
+const getOpportunityStore = () => getStore({ name: 'opportunities', fetch: fetch as unknown as typeof global.fetch });
+const getStaffStore = () => getStore({ name: 'staff', fetch: fetch as unknown as typeof global.fetch });
 
 // Type definitions
 export interface User {
@@ -58,15 +65,25 @@ async function getAllFromStore<T>(store: any): Promise<T[]> {
     console.log("getAllFromStore: Listing blobs...");
     const { blobs } = await store.list();
     console.log("getAllFromStore: Blobs listed successfully.", blobs);
+    
+    // Filter out metadata and chunk blobs
+    const validBlobs = blobs.filter(blob => 
+      !blob.key.startsWith('_meta_') && 
+      !blob.key.includes('_chunk_') && 
+      !blob.key.endsWith('_compressed')
+    );
+    
     const items: T[] = [];
     
-    for (const blob of blobs) {
+    for (const blob of validBlobs) {
       try {
         console.log(`getAllFromStore: Getting data for blob ${blob.key}...`);
-        const data = await store.get(blob.key, { type: 'json' });
+        // Use our optimized chunk retrieval function
+        const data = await getFromChunks<T>(store, blob.key);
+        
         if (data) {
           console.log(`getAllFromStore: Successfully retrieved data for blob ${blob.key}.`);
-          items.push(data as T);
+          items.push(data);
         }
       } catch (error) {
         console.warn(`Failed to parse blob ${blob.key}:`, error);
@@ -83,8 +100,9 @@ async function getAllFromStore<T>(store: any): Promise<T[]> {
 // Helper function to find item by ID
 async function findById<T extends { id: string }>(store: any, id: string): Promise<T | null> {
   try {
-    const data = await store.get(id, { type: 'json' });
-    return data as T || null;
+    // Try to get data with our chunking-aware function
+    const data = await getFromChunks<T>(store, id);
+    return data || null;
   } catch (error) {
     console.error(`Error finding item by ID ${id}:`, error);
     return null;
@@ -125,7 +143,15 @@ export const blobDb = {
         createdAt: new Date().toISOString(),
       };
       
-      await store.set(user.id, JSON.stringify(user));
+      // Check size before storing
+      const serializedSize = getSerializedSize(user);
+      
+      if (serializedSize > SIZE_LIMITS.WARNING_THRESHOLD) {
+        console.warn(`Large user object (${serializedSize} bytes) detected.`);
+      }
+      
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, user.id, user);
       return user;
     },
     
@@ -140,15 +166,15 @@ export const blobDb = {
         updatedAt: new Date().toISOString(),
       };
       
-      await store.set(id, JSON.stringify(updated));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, id, updated);
       return updated;
     },
     
     delete: async (id: string): Promise<boolean> => {
       const store = getUserStore();
       try {
-        await store.delete(id);
-        return true;
+        return await deleteChunkedData(store, id);
       } catch (error) {
         console.error(`Error deleting user ${id}:`, error);
         return false;
@@ -176,7 +202,8 @@ export const blobDb = {
         createdAt: new Date().toISOString(),
       };
       
-      await store.set(lead.id, JSON.stringify(lead));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, lead.id, lead);
       return lead;
     },
     
@@ -191,15 +218,15 @@ export const blobDb = {
         updatedAt: new Date().toISOString(),
       };
       
-      await store.set(id, JSON.stringify(updated));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, id, updated);
       return updated;
     },
     
     delete: async (id: string): Promise<boolean> => {
       const store = getLeadStore();
       try {
-        await store.delete(id);
-        return true;
+        return await deleteChunkedData(store, id);
       } catch (error) {
         console.error(`Error deleting lead ${id}:`, error);
         return false;
@@ -232,7 +259,8 @@ export const blobDb = {
         createdAt: new Date().toISOString(),
       };
       
-      await store.set(opportunity.id, JSON.stringify(opportunity));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, opportunity.id, opportunity);
       return opportunity;
     },
     
@@ -247,15 +275,15 @@ export const blobDb = {
         updatedAt: new Date().toISOString(),
       };
       
-      await store.set(id, JSON.stringify(updated));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, id, updated);
       return updated;
     },
     
     delete: async (id: string): Promise<boolean> => {
       const store = getOpportunityStore();
       try {
-        await store.delete(id);
-        return true;
+        return await deleteChunkedData(store, id);
       } catch (error) {
         console.error(`Error deleting opportunity ${id}:`, error);
         return false;
@@ -289,7 +317,8 @@ export const blobDb = {
         createdAt: new Date().toISOString(),
       };
       
-      await store.set(staff.id, JSON.stringify(staff));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, staff.id, staff);
       return staff;
     },
     
@@ -304,15 +333,15 @@ export const blobDb = {
         updatedAt: new Date().toISOString(),
       };
       
-      await store.set(id, JSON.stringify(updated));
+      // Use the chunking mechanism for storage
+      await storeInChunks(store, id, updated);
       return updated;
     },
     
     delete: async (id: string): Promise<boolean> => {
       const store = getStaffStore();
       try {
-        await store.delete(id);
-        return true;
+        return await deleteChunkedData(store, id);
       } catch (error) {
         console.error(`Error deleting staff ${id}:`, error);
         return false;

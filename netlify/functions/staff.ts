@@ -1,3 +1,4 @@
+// filepath: d:\inline-lead-78\netlify\functions\staff.ts
 import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
 import neo4j from 'neo4j-driver';
 import {
@@ -12,10 +13,11 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-// Removed blob import
+import { validateRequestSize } from './utils/size-validator';
+import { withUnifiedDatabase, unifiedDatabase } from './utils/unified-db';
 
-// Staff API Handler
-export const handler = async (
+// Staff API Handler - without size validation
+const staffHandler = async (
   event: HandlerEvent,
   context: HandlerContext
 ): Promise<HandlerResponse> => {
@@ -62,55 +64,28 @@ export const handler = async (
   }
 };
 
-// Initialize Neo4j Driver
-const initNeo4j = () => {
-  const neo4jUri = process.env.NEO4J_URI;
-  if (!neo4jUri) {
-    throw new Error('NEO4J_URI environment variable is not set.');
-  }
-
-  const driver = neo4j.driver(
-    neo4jUri,
-    neo4j.auth.basic(
-      process.env.NEO4J_USERNAME || 'neo4j',
-      process.env.NEO4J_PASSWORD || 'password'
-    )
-  );
-  return driver;
-};
-
-const driver = initNeo4j();
-
 // Get staff (all or specific staff member)
 const handleGetStaff = async (staffId?: string | null): Promise<HandlerResponse> => {
-  const session = driver.session();
   try {
-    if (staffId) {
-      // Get specific staff member
-      const query = `MATCH (s:Staff {id: $staffId})
-                     RETURN s`;
-      const result = await session.run(query, { staffId });
-
-      if (result.records.length === 0) {
-        return errorResponse(404, 'Staff member not found');
+    return await withUnifiedDatabase(async () => {
+      if (staffId) {
+        // Get specific staff member
+        const staff = await unifiedDatabase.staff.findById(staffId);
+        
+        if (!staff) {
+          return errorResponse(404, 'Staff member not found');
+        }
+        
+        return successResponse(staff);
+      } else {
+        // Get all staff
+        const staff = await unifiedDatabase.staff.findMany();
+        return successResponse(staff);
       }
-
-      const staff = result.records[0].get('s').properties;
-      return successResponse(staff);
-    } else {
-      // Get all staff
-      const query = `MATCH (s:Staff)
-                     RETURN s`;
-      const result = await session.run(query);
-
-      const staff = result.records.map(record => record.get('s').properties);
-      return successResponse(staff);
-    }
+    });
   } catch (error) {
-    console.error('Error getting staff from Neo4j:', error);
+    console.error('Error getting staff:', error);
     return errorResponse(500, 'Error getting staff member');
-  } finally {
-    await session.close();
   }
 };
 
@@ -133,46 +108,33 @@ const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> 
     return errorResponse(400, 'Invalid email format');
   }
 
-  const session = driver.session();
   try {
-    // Check for duplicate email
-    const checkEmailQuery = `MATCH (s:Staff {email: $email}) RETURN s`;
-    const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
-    if (emailCheckResult.records.length > 0) {
-      return errorResponse(409, 'Staff member with this email already exists');
-    }
+    return await withUnifiedDatabase(async () => {
+      // Check for duplicate email
+      const existingStaff = await unifiedDatabase.staff.findByEmail(body.email);
+      if (existingStaff) {
+        return errorResponse(409, 'Staff member with this email already exists');
+      }
 
-    const staffId = crypto.randomUUID();
-    const staff = {
-      id: staffId,
-      email: body.email,
-      name: body.name,
-      role: body.role,
-      department: body.department || null,
-      phone: body.phone || null,
-      status: body.status || 'ACTIVE',
-      createdAt: new Date().toISOString(),
-    };
+      const staffId = crypto.randomUUID();
+      const staffData = {
+        id: staffId,
+        email: body.email,
+        name: body.name,
+        role: body.role,
+        department: body.department || null,
+        phone: body.phone || null,
+        status: body.status || 'ACTIVE',
+        createdAt: new Date().toISOString(),
+      };
 
-    const query = `CREATE (s:Staff {
-      id: $id,
-      email: $email,
-      name: $name,
-      role: $role,
-      department: $department,
-      phone: $phone,
-      status: $status,
-      createdAt: $createdAt
-    })
-    RETURN s`;
-
-    await session.run(query, staff);
-    return successResponse(staff, 'Staff member created successfully');
+      // Create staff using unified database
+      const staff = await unifiedDatabase.staff.create(staffData);
+      return successResponse(staff, 'Staff member created successfully');
+    });
   } catch (error) {
-    console.error('Error creating staff in Neo4j:', error);
+    console.error('Error creating staff:', error);
     return errorResponse(500, 'Error creating staff member');
-  } finally {
-    await session.close();
   }
 };
 
@@ -192,74 +154,62 @@ const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<
     }
   }
 
-  const session = driver.session();
   try {
-    // Fetch existing staff member
-    const fetchQuery = `MATCH (s:Staff {id: $staffId}) RETURN s`;
-    const fetchResult = await session.run(fetchQuery, { staffId });
-
-    if (fetchResult.records.length === 0) {
-      return errorResponse(404, 'Staff member not found');
-    }
-
-    const staff = fetchResult.records[0].get('s').properties;
-
-    // Check for duplicate email if email is being updated
-    if (body.email && body.email !== staff.email) {
-      const checkEmailQuery = `MATCH (s:Staff {email: $email}) RETURN s`;
-      const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
-      if (emailCheckResult.records.length > 0) {
-        return errorResponse(409, 'Email already exists');
+    return await withUnifiedDatabase(async () => {
+      // Fetch existing staff member
+      const existingStaff = await unifiedDatabase.staff.findById(staffId);
+      
+      if (!existingStaff) {
+        return errorResponse(404, 'Staff member not found');
+      }      // Check for duplicate email if email is being updated
+      if (body.email && body.email !== (existingStaff as any).email) {
+        const duplicateStaff = await unifiedDatabase.staff.findByEmail(body.email);
+        if (duplicateStaff && (duplicateStaff as any).id) {
+          return errorResponse(409, 'Email already exists');
+        }
       }
-    }
 
-    // Update fields
-    if (body.name) staff.name = body.name;
-    if (body.email) staff.email = body.email;
-    if (body.role) staff.role = body.role;
-    if (body.department !== undefined) staff.department = body.department;
-    if (body.phone !== undefined) staff.phone = body.phone;
-    if (body.status) staff.status = body.status;
-
-    // Add updated timestamp
-    staff.updatedAt = new Date().toISOString();
-
-    // Update in Neo4j
-    const updateQuery = `MATCH (s:Staff {id: $staffId})
-                       SET s = $staff
-                       RETURN s`;
-
-    await session.run(updateQuery, { staffId, staff });
-    return successResponse(staff, 'Staff member updated successfully');
+      // Prepare update data
+      const updateData = {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.email !== undefined && { email: body.email }),
+        ...(body.role !== undefined && { role: body.role }),
+        ...(body.department !== undefined && { department: body.department }),
+        ...(body.phone !== undefined && { phone: body.phone }),
+        ...(body.status !== undefined && { status: body.status }),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // Update the staff member
+      const updatedStaff = await unifiedDatabase.staff.update(staffId, updateData);
+      return successResponse(updatedStaff, 'Staff member updated successfully');
+    });
   } catch (error) {
-    console.error('Error updating staff in Neo4j:', error);
+    console.error('Error updating staff:', error);
     return errorResponse(500, 'Error updating staff member');
-  } finally {
-    await session.close();
   }
 };
 
 // Delete staff member
 const handleDeleteStaff = async (staffId: string): Promise<HandlerResponse> => {
-  const session = driver.session();
   try {
-    // Check if staff member exists before deletion
-    const fetchQuery = `MATCH (s:Staff {id: $staffId}) RETURN s`;
-    const fetchResult = await session.run(fetchQuery, { staffId });
-
-    if (fetchResult.records.length === 0) {
-      return errorResponse(404, 'Staff member not found');
-    }
-
-    const query = `MATCH (s:Staff {id: $staffId})
-                   DELETE s`;
-    await session.run(query, { staffId });
-
-    return successResponse(null, 'Staff member deleted successfully');
+    return await withUnifiedDatabase(async () => {
+      // Check if staff exists
+      const staff = await unifiedDatabase.staff.findById(staffId);
+      
+      if (!staff) {
+        return errorResponse(404, 'Staff member not found');
+      }
+      
+      // Delete using unified database
+      await unifiedDatabase.staff.delete(staffId);
+      return successResponse(null, 'Staff member deleted successfully');
+    });
   } catch (error) {
-    console.error('Error deleting staff from Neo4j:', error);
+    console.error('Error deleting staff:', error);
     return errorResponse(500, 'Error deleting staff member');
-  } finally {
-    await session.close();
   }
 };
+
+// Apply size validation middleware to the handler
+export const handler = validateRequestSize(staffHandler);

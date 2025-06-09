@@ -13,6 +13,8 @@ import {
 } from './utils/api-utils';
 import { blobDb, withBlobDatabase } from './utils/blob-db';
 
+console.log("analytics.ts: Starting up");
+
 // Analytics API Handler
 export const handler = async (
   event: HandlerEvent,
@@ -38,17 +40,25 @@ export const handler = async (
 
   try {
     console.log("Handling analytics request...");
+    console.log("NEO4J_URI:", process.env.NEO4J_URI);
+    console.log("NEO4J_USERNAME:", process.env.NEO4J_USERNAME);
+    console.log("NEO4J_PASSWORD:", process.env.NEO4J_PASSWORD);
     return await handleGetAnalytics(event);
   } catch (error) {
     console.error('Analytics API error:', error);
+    console.error("NEO4J_URI:", process.env.NEO4J_URI);
+    console.error("NEO4J_USERNAME:", process.env.NEO4J_USERNAME);
+    console.error("NEO4J_PASSWORD:", process.env.NEO4J_PASSWORD);
     return errorResponse(500, 'Internal server error');
   }
 };
 
 // Get analytics data
 const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse> => {
+  console.log("handleGetAnalytics: start");
   console.log("Calling withBlobDatabase...");
   return withBlobDatabase(async () => {
+  console.log("handleGetAnalytics: withBlobDatabase start");
     try {
       console.log("handleGetAnalytics: Fetching analytics data from blob storage...");
       // Log start time

@@ -1,4 +1,5 @@
 import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
+import neo4j from 'neo4j-driver';
 import {
   corsHeaders,
   createResponse,
@@ -14,7 +15,14 @@ import {
 import { validateRequestSize } from './utils/size-validator';
 import { withUnifiedDatabase, unifiedDatabase } from './utils/unified-db';
 
-// Opportunity API Handler - with size validation
+const NEO4J_URI = process.env.NEO4J_URI || 'bolt://localhost:7687';
+const NEO4J_USERNAME = process.env.NEO4J_USERNAME || 'neo4j';
+const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'password';
+
+// Neo4j driver initialization (for compatibility with existing code)
+const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USERNAME, NEO4J_PASSWORD));
+
+// Opportunity API Handler - without size validation
 const opportunitiesHandler = async (
   event: HandlerEvent,
   context: HandlerContext
@@ -29,6 +37,12 @@ const opportunitiesHandler = async (
   // Basic authentication check
   if (!authenticateRequest(event)) {
     return errorResponse(401, 'Unauthorized');
+  }
+
+  // Validate request size
+  const maxSizeInBytes = 1024 * 1024; // 1 MB
+  if (!validateRequestSize(event, maxSizeInBytes)) {
+    return errorResponse(413, 'Request entity too large. Maximum size is 1MB.');
   }
 
   try {
@@ -79,7 +93,7 @@ const handleGetOpportunities = async (
         const leadId = event?.queryStringParameters?.leadId;
 
         if (leadId) {
-          // Get opportunities for a specific lead
+          // Get opportunities for specific lead
           const opportunities = await unifiedDatabase.opportunity.findByLead(leadId);
           return successResponse(opportunities);
         } else {
@@ -90,8 +104,8 @@ const handleGetOpportunities = async (
       }
     });
   } catch (error) {
-    console.error('Error getting opportunity:', error);
-    return errorResponse(500, 'Error getting opportunity');
+    console.error('Error getting opportunities:', error);
+    return errorResponse(500, 'Error getting opportunities');
   }
 };
 
@@ -120,22 +134,22 @@ const handleCreateOpportunity = async (event: HandlerEvent): Promise<HandlerResp
     return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
   }
 
+  const opportunityId = crypto.randomUUID();
+  const opportunityData = {
+    id: opportunityId,
+    title: body.title,
+    amount: amount,
+    stage: body.stage || 'PROSPECT',
+    leadId: body.leadId,
+    assignedTo: body.assignedTo || null,
+    createdAt: new Date().toISOString(),
+  };
+
   try {
     return await withUnifiedDatabase(async () => {
-      const opportunityId = crypto.randomUUID();
-      const opportunity = {
-        id: opportunityId,
-        title: body.title,
-        amount: amount,
-        stage: body.stage || 'PROSPECT',
-        leadId: body.leadId,
-        assignedTo: body.assignedTo || null,
-        createdAt: new Date().toISOString(),
-      };
-
       // Create opportunity using unified database
-      const createdOpportunity = await unifiedDatabase.opportunity.create(opportunity);
-      return successResponse(createdOpportunity, 'Opportunity created successfully');
+      const opportunity = await unifiedDatabase.opportunity.create(opportunityData);
+      return successResponse(opportunity, 'Opportunity created successfully');
     });
   } catch (error) {
     console.error('Error creating opportunity:', error);
@@ -170,14 +184,14 @@ const handleUpdateOpportunity = async (
 
   try {
     return await withUnifiedDatabase(async () => {
-      // Fetch existing opportunity
-      const opportunity = await unifiedDatabase.opportunity.findById(opportunityId);
+      // Check if opportunity exists
+      const existingOpportunity = await unifiedDatabase.opportunity.findById(opportunityId);
       
-      if (!opportunity) {
+      if (!existingOpportunity) {
         return errorResponse(404, 'Opportunity not found');
       }
-
-      // Prepare update data
+      
+      // Build update data object with only the fields that need to be updated
       const updateData = {
         ...(body.title !== undefined && { title: body.title }),
         ...(body.amount !== undefined && { amount: parseFloat(body.amount) }),
@@ -187,7 +201,7 @@ const handleUpdateOpportunity = async (
         updatedAt: new Date().toISOString(),
       };
       
-      // Update the opportunity
+      // Update using unified database
       const updatedOpportunity = await unifiedDatabase.opportunity.update(opportunityId, updateData);
       return successResponse(updatedOpportunity, 'Opportunity updated successfully');
     });
@@ -217,6 +231,3 @@ const handleDeleteOpportunity = async (opportunityId: string): Promise<HandlerRe
     return errorResponse(500, 'Error deleting opportunity');
   }
 };
-
-// Apply size validation middleware to the handler
-export const handler = validateRequestSize(opportunitiesHandler);
