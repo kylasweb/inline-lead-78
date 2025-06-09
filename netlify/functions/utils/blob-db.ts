@@ -1,10 +1,11 @@
+import fetch from 'node-fetch';
 import { getStore } from '@netlify/blobs';
 
 // Initialize blob stores for each entity type
-const getUserStore = () => getStore('users');
-const getLeadStore = () => getStore('leads');
-const getOpportunityStore = () => getStore('opportunities');
-const getStaffStore = () => getStore('staff');
+const getUserStore = () => getStore({ name: 'users', fetch });
+const getLeadStore = () => getStore({ name: 'leads', fetch });
+const getOpportunityStore = () => getStore({ name: 'opportunities', fetch });
+const getStaffStore = () => getStore({ name: 'staff', fetch });
 
 // Type definitions
 export interface User {
