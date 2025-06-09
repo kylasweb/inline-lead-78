@@ -11,7 +11,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { db, withDatabase } from './utils/db';
+import { blobDb, withBlobDatabase } from './utils/blob-db';
 
 // Analytics API Handler
 export const handler = async (
@@ -47,11 +47,15 @@ export const handler = async (
 
 // Get analytics data
 const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse> => {
-  console.log("Calling withDatabase...");
-  return withDatabase(async () => {
+  console.log("Calling withBlobDatabase...");
+  return withBlobDatabase(async () => {
     try {
-      console.log("Fetching analytics data from database...");
+      console.log("handleGetAnalytics: Fetching analytics data from blob storage...");
+      // Log start time
+      const startTime = Date.now();
+      
       // Get all analytics data in parallel
+      console.log("handleGetAnalytics: Getting leads by status...");
       const [
         leadsByStatus,
         opportunitiesByStage,
@@ -59,11 +63,51 @@ const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse>
         userStats,
         totalCounts
       ] = await Promise.all([
-        db.analytics.getLeadsByStatus(),
-        db.analytics.getOpportunitiesByStage(),
-        db.analytics.getTotalRevenue(),
-        db.analytics.getUserStats(),
-        getTotalCounts()
+        (async () => {
+          try {
+            console.log("handleGetAnalytics: Getting leadsByStatus...");
+            return await blobDb.analytics.getLeadsByStatus();
+          } catch (e) {
+            console.error("handleGetAnalytics: Error getting leadsByStatus:", e);
+            return [];
+          }
+        })(),
+        (async () => {
+          try{
+            console.log("handleGetAnalytics: Getting opportunitiesByStage...");
+            return await blobDb.analytics.getOpportunitiesByStage();
+          } catch (e) {
+            console.error("handleGetAnalytics: Error getting opportunitiesByStage:", e);
+            return [];
+          }
+        })(),
+        (async () => {
+          try {
+            console.log("handleGetAnalytics: Getting totalRevenue...");
+            return await blobDb.analytics.getTotalRevenue();
+          } catch (e) {
+            console.error("handleGetAnalytics: Error getting totalRevenue:", e);
+            return { _sum: { amount: 0 }};
+          }
+        })(),
+        (async () => {
+          try {
+            console.log("handleGetAnalytics: Getting userStats...");
+            return await blobDb.analytics.getUserStats();
+          } catch (e) {
+            console.error("handleGetAnalytics: Error getting userStats:", e);
+            return [];
+          }
+        })(),
+        (async () => {
+          try {
+            console.log("handleGetAnalytics: Getting totalCounts...");
+            return await getTotalCounts();
+          } catch (e) {
+            console.error("handleGetAnalytics: Error getting totalCounts:", e);
+            return { users: 0, leads: 0, opportunities: 0 };
+          }
+        })()
       ]);
 
       // Calculate conversion rates
@@ -75,9 +119,11 @@ const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse>
       const closedWonOpportunities = opportunitiesByStage.find(
         stage => stage.stage === 'CLOSED_WON'
       );
-      const winRate = totalOpportunities > 0 
-        ? ((closedWonOpportunities?._count?.stage || 0) / totalOpportunities) * 100 
-        : 0;      // Calculate average deal size
+      const winRate = totalOpportunities > 0
+        ? ((closedWonOpportunities?._count?.stage || 0) / totalOpportunities) * 100
+        : 0;
+      
+      // Calculate average deal size
       const totalRevenueAmount = Number(totalRevenue._sum.amount) || 0;
       const averageDealSize = totalOpportunities > 0 ? totalRevenueAmount / totalOpportunities : 0;
 
@@ -119,23 +165,27 @@ const handleGetAnalytics = async (event: HandlerEvent): Promise<HandlerResponse>
 
       return successResponse(analytics);
     } catch (error) {
-      console.error('Error fetching analytics:', error);
-      throw error;
+      console.error('handleGetAnalytics: Error fetching analytics:', error);
+      return errorResponse(500, 'Internal server error');
     }
   });
 };
 
-// Helper function to get total counts
 const getTotalCounts = async () => {
-  const [users, leads, opportunities] = await Promise.all([
-    db.user.findMany(),
-    db.lead.findMany(),
-    db.opportunity.findMany()
-  ]);
-
-  return {
-    users: users.length,
-    leads: leads.length,
-    opportunities: opportunities.length
-  };
+  try {
+    console.log("getTotalCounts: Getting user, lead, and opportunity counts...");
+    const [users, leads, opportunities] = await Promise.all([
+      blobDb.user.findMany(),
+      blobDb.lead.findMany(),
+      blobDb.opportunity.findMany()
+    ]);
+    return {
+      users: users.length,
+      leads: leads.length,
+      opportunities: opportunities.length
+    };
+  } catch (error) {
+    console.error("getTotalCounts: Error getting counts:", error);
+    return { users: 0, leads: 0, opportunities: 0 };
+  }
 };
