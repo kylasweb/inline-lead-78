@@ -1,4 +1,5 @@
 import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
+import neo4j from 'neo4j-driver';
 import {
   corsHeaders,
   createResponse,
@@ -11,7 +12,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { getStore } from '@netlify/blobs';
+// Removed blob import
 
 // Staff API Handler
 export const handler = async (
@@ -61,55 +62,62 @@ export const handler = async (
   }
 };
 
+// Initialize Neo4j Driver
+const initNeo4j = () => {
+  const neo4jUri = process.env.NEO4J_URI;
+  if (!neo4jUri) {
+    throw new Error('NEO4J_URI environment variable is not set.');
+  }
+
+  const driver = neo4j.driver(
+    neo4jUri,
+    neo4j.auth.basic(
+      process.env.NEO4J_USERNAME || 'neo4j',
+      process.env.NEO4J_PASSWORD || 'password'
+    )
+  );
+  return driver;
+};
+
+const driver = initNeo4j();
+
 // Get staff (all or specific staff member)
 const handleGetStaff = async (staffId?: string | null): Promise<HandlerResponse> => {
-  if (staffId) {
-    try {
-      console.log('Attempting to retrieve staff:', staffId);
-      const store = getStore('staff');
-      const staffData = await store.get(staffId);
-      
-      if (!staffData) {
+  const session = driver.session();
+  try {
+    if (staffId) {
+      // Get specific staff member
+      const query = `MATCH (s:Staff {id: $staffId})
+                     RETURN s`;
+      const result = await session.run(query, { staffId });
+
+      if (result.records.length === 0) {
         return errorResponse(404, 'Staff member not found');
       }
-      
-      const staff = JSON.parse(staffData);
+
+      const staff = result.records[0].get('s').properties;
       return successResponse(staff);
-    } catch (error) {
-      console.error('Error getting staff from Blob Storage:', error);
-      return errorResponse(500, 'Error getting staff member');
-    }
-  } else {
-    try {
-      // List all staff
-      console.log('Attempting to list all staff');
-      const store = getStore('staff');
-      const { blobs } = await store.list();
-      
-      const staff = [];
-      for (const blob of blobs) {
-        try {
-          const staffData = await store.get(blob.key);
-          if (staffData) {
-            staff.push(JSON.parse(staffData));
-          }
-        } catch (parseError) {
-          console.error(`Error parsing staff ${blob.key}:`, parseError);
-        }
-      }
-      
+    } else {
+      // Get all staff
+      const query = `MATCH (s:Staff)
+                     RETURN s`;
+      const result = await session.run(query);
+
+      const staff = result.records.map(record => record.get('s').properties);
       return successResponse(staff);
-    } catch (error) {
-      console.error('Error listing staff from Blob Storage:', error);
-      return errorResponse(500, 'Error listing staff');
     }
+  } catch (error) {
+    console.error('Error getting staff from Neo4j:', error);
+    return errorResponse(500, 'Error getting staff member');
+  } finally {
+    await session.close();
   }
 };
 
 // Create new staff member
 const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -125,23 +133,13 @@ const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> 
     return errorResponse(400, 'Invalid email format');
   }
 
-  // Check for duplicate email
+  const session = driver.session();
   try {
-    const store = getStore('staff');
-    const { blobs } = await store.list();
-    
-    for (const blob of blobs) {
-      try {
-        const existingStaffData = await store.get(blob.key);
-        if (existingStaffData) {
-          const existingStaff = JSON.parse(existingStaffData);
-          if (existingStaff.email === body.email) {
-            return errorResponse(409, 'Staff member with this email already exists');
-          }
-        }
-      } catch (parseError) {
-        console.error(`Error parsing staff ${blob.key}:`, parseError);
-      }
+    // Check for duplicate email
+    const checkEmailQuery = `MATCH (s:Staff {email: $email}) RETURN s`;
+    const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
+    if (emailCheckResult.records.length > 0) {
+      return errorResponse(409, 'Staff member with this email already exists');
     }
 
     const staffId = crypto.randomUUID();
@@ -156,18 +154,32 @@ const handleCreateStaff = async (event: HandlerEvent): Promise<HandlerResponse> 
       createdAt: new Date().toISOString(),
     };
 
-    await store.set(staffId, JSON.stringify(staff));
+    const query = `CREATE (s:Staff {
+      id: $id,
+      email: $email,
+      name: $name,
+      role: $role,
+      department: $department,
+      phone: $phone,
+      status: $status,
+      createdAt: $createdAt
+    })
+    RETURN s`;
+
+    await session.run(query, staff);
     return successResponse(staff, 'Staff member created successfully');
   } catch (error) {
-    console.error('Error creating staff in Blob Storage:', error);
+    console.error('Error creating staff in Neo4j:', error);
     return errorResponse(500, 'Error creating staff member');
+  } finally {
+    await session.close();
   }
 };
 
 // Update staff member
 const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -180,34 +192,24 @@ const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<
     }
   }
 
+  const session = driver.session();
   try {
-    const store = getStore('staff');
-    const staffData = await store.get(staffId);
-    
-    if (!staffData) {
+    // Fetch existing staff member
+    const fetchQuery = `MATCH (s:Staff {id: $staffId}) RETURN s`;
+    const fetchResult = await session.run(fetchQuery, { staffId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'Staff member not found');
     }
-    
-    const staff = JSON.parse(staffData);
+
+    const staff = fetchResult.records[0].get('s').properties;
 
     // Check for duplicate email if email is being updated
     if (body.email && body.email !== staff.email) {
-      const { blobs } = await store.list();
-      
-      for (const blob of blobs) {
-        if (blob.key !== staffId) {
-          try {
-            const existingStaffData = await store.get(blob.key);
-            if (existingStaffData) {
-              const existingStaff = JSON.parse(existingStaffData);
-              if (existingStaff.email === body.email) {
-                return errorResponse(409, 'Email already exists');
-              }
-            }
-          } catch (parseError) {
-            console.error(`Error parsing staff ${blob.key}:`, parseError);
-          }
-        }
+      const checkEmailQuery = `MATCH (s:Staff {email: $email}) RETURN s`;
+      const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
+      if (emailCheckResult.records.length > 0) {
+        return errorResponse(409, 'Email already exists');
       }
     }
 
@@ -218,33 +220,46 @@ const handleUpdateStaff = async (staffId: string, event: HandlerEvent): Promise<
     if (body.department !== undefined) staff.department = body.department;
     if (body.phone !== undefined) staff.phone = body.phone;
     if (body.status) staff.status = body.status;
-    
+
     // Add updated timestamp
     staff.updatedAt = new Date().toISOString();
 
-    await store.set(staffId, JSON.stringify(staff));
+    // Update in Neo4j
+    const updateQuery = `MATCH (s:Staff {id: $staffId})
+                       SET s = $staff
+                       RETURN s`;
+
+    await session.run(updateQuery, { staffId, staff });
     return successResponse(staff, 'Staff member updated successfully');
   } catch (error) {
-    console.error('Error updating staff in Blob Storage:', error);
+    console.error('Error updating staff in Neo4j:', error);
     return errorResponse(500, 'Error updating staff member');
+  } finally {
+    await session.close();
   }
 };
 
 // Delete staff member
 const handleDeleteStaff = async (staffId: string): Promise<HandlerResponse> => {
+  const session = driver.session();
   try {
-    const store = getStore('staff');
-    
     // Check if staff member exists before deletion
-    const staffData = await store.get(staffId);
-    if (!staffData) {
+    const fetchQuery = `MATCH (s:Staff {id: $staffId}) RETURN s`;
+    const fetchResult = await session.run(fetchQuery, { staffId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'Staff member not found');
     }
-    
-    await store.delete(staffId);
+
+    const query = `MATCH (s:Staff {id: $staffId})
+                   DELETE s`;
+    await session.run(query, { staffId });
+
     return successResponse(null, 'Staff member deleted successfully');
   } catch (error) {
-    console.error('Error deleting staff from Blob Storage:', error);
+    console.error('Error deleting staff from Neo4j:', error);
     return errorResponse(500, 'Error deleting staff member');
+  } finally {
+    await session.close();
   }
 };

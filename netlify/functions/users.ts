@@ -1,4 +1,5 @@
 import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
+import neo4j from 'neo4j-driver';
 import {
   corsHeaders,
   createResponse,
@@ -11,7 +12,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { getStore } from '@netlify/blobs';
+// Removed blob import
 
 // User API Handler
 export const handler = async (
@@ -61,55 +62,62 @@ export const handler = async (
   }
 };
 
+// Initialize Neo4j Driver
+const initNeo4j = () => {
+  const neo4jUri = process.env.NEO4J_URI;
+  if (!neo4jUri) {
+    throw new Error('NEO4J_URI environment variable is not set.');
+  }
+
+  const driver = neo4j.driver(
+    neo4jUri,
+    neo4j.auth.basic(
+      process.env.NEO4J_USERNAME || 'neo4j',
+      process.env.NEO4J_PASSWORD || 'password'
+    )
+  );
+  return driver;
+};
+
+const driver = initNeo4j();
+
 // Get users (all or specific user)
 const handleGetUsers = async (userId?: string | null): Promise<HandlerResponse> => {
-  if (userId) {
-    try {
-      console.log('Attempting to retrieve user:', userId);
-      const store = getStore('users');
-      const userData = await store.get(userId);
-      
-      if (!userData) {
+  const session = driver.session();
+  try {
+    if (userId) {
+      // Get specific user
+      const query = `MATCH (u:User {id: $userId})
+                     RETURN u`;
+      const result = await session.run(query, { userId });
+
+      if (result.records.length === 0) {
         return errorResponse(404, 'User not found');
       }
-      
-      const user = JSON.parse(userData);
+
+      const user = result.records[0].get('u').properties;
       return successResponse(user);
-    } catch (error) {
-      console.error('Error getting user from Blob Storage:', error);
-      return errorResponse(500, 'Error getting user');
-    }
-  } else {
-    try {
-      // List all users
-      console.log('Attempting to list all users');
-      const store = getStore('users');
-      const { blobs } = await store.list();
-      
-      const users = [];
-      for (const blob of blobs) {
-        try {
-          const userData = await store.get(blob.key);
-          if (userData) {
-            users.push(JSON.parse(userData));
-          }
-        } catch (parseError) {
-          console.error(`Error parsing user ${blob.key}:`, parseError);
-        }
-      }
-      
+    } else {
+      // Get all users
+      const query = `MATCH (u:User)
+                     RETURN u`;
+      const result = await session.run(query);
+
+      const users = result.records.map(record => record.get('u').properties);
       return successResponse(users);
-    } catch (error) {
-      console.error('Error listing users from Blob Storage:', error);
-      return errorResponse(500, 'Error listing users');
     }
+  } catch (error) {
+    console.error('Error getting user from Neo4j:', error);
+    return errorResponse(500, 'Error getting user');
+  } finally {
+    await session.close();
   }
 };
 
 // Create new user
 const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -125,23 +133,13 @@ const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> =
     return errorResponse(400, 'Invalid email format');
   }
 
-  // Check for duplicate email
+  const session = driver.session();
   try {
-    const store = getStore('users');
-    const { blobs } = await store.list();
-    
-    for (const blob of blobs) {
-      try {
-        const existingUserData = await store.get(blob.key);
-        if (existingUserData) {
-          const existingUser = JSON.parse(existingUserData);
-          if (existingUser.email === body.email) {
-            return errorResponse(409, 'User with this email already exists');
-          }
-        }
-      } catch (parseError) {
-        console.error(`Error parsing user ${blob.key}:`, parseError);
-      }
+    // Check for duplicate email
+    const checkEmailQuery = `MATCH (u:User {email: $email}) RETURN u`;
+    const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
+    if (emailCheckResult.records.length > 0) {
+      return errorResponse(409, 'User with this email already exists');
     }
 
     const userId = crypto.randomUUID();
@@ -153,18 +151,29 @@ const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> =
       createdAt: new Date().toISOString(),
     };
 
-    await store.set(userId, JSON.stringify(user));
+    const query = `CREATE (u:User {
+      id: $id,
+      email: $email,
+      name: $name,
+      role: $role,
+      createdAt: $createdAt
+    })
+    RETURN u`;
+
+    await session.run(query, user);
     return successResponse(user, 'User created successfully');
   } catch (error) {
-    console.error('Error creating user in Blob Storage:', error);
+    console.error('Error creating user in Neo4j:', error);
     return errorResponse(500, 'Error creating user');
+  } finally {
+    await session.close();
   }
 };
 
 // Update user
 const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -177,34 +186,24 @@ const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<Ha
     }
   }
 
+  const session = driver.session();
   try {
-    const store = getStore('users');
-    const userData = await store.get(userId);
-    
-    if (!userData) {
+    // Fetch existing user
+    const fetchQuery = `MATCH (u:User {id: $userId}) RETURN u`;
+    const fetchResult = await session.run(fetchQuery, { userId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'User not found');
     }
-    
-    const user = JSON.parse(userData);
+
+    const user = fetchResult.records[0].get('u').properties;
 
     // Check for duplicate email if email is being updated
     if (body.email && body.email !== user.email) {
-      const { blobs } = await store.list();
-      
-      for (const blob of blobs) {
-        if (blob.key !== userId) {
-          try {
-            const existingUserData = await store.get(blob.key);
-            if (existingUserData) {
-              const existingUser = JSON.parse(existingUserData);
-              if (existingUser.email === body.email) {
-                return errorResponse(409, 'Email already exists');
-              }
-            }
-          } catch (parseError) {
-            console.error(`Error parsing user ${blob.key}:`, parseError);
-          }
-        }
+      const checkEmailQuery = `MATCH (u:User {email: $email}) RETURN u`;
+      const emailCheckResult = await session.run(checkEmailQuery, { email: body.email });
+      if (emailCheckResult.records.length > 0) {
+        return errorResponse(409, 'Email already exists');
       }
     }
 
@@ -212,33 +211,46 @@ const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<Ha
     if (body.name) user.name = body.name;
     if (body.email) user.email = body.email;
     if (body.role) user.role = body.role;
-    
+
     // Add updated timestamp
     user.updatedAt = new Date().toISOString();
 
-    await store.set(userId, JSON.stringify(user));
+    // Update in Neo4j
+    const updateQuery = `MATCH (u:User {id: $userId})
+                       SET u = $user
+                       RETURN u`;
+
+    await session.run(updateQuery, { userId, user });
     return successResponse(user, 'User updated successfully');
   } catch (error) {
-    console.error('Error updating user in Blob Storage:', error);
+    console.error('Error updating user in Neo4j:', error);
     return errorResponse(500, 'Error updating user');
+  } finally {
+    await session.close();
   }
 };
 
 // Delete user
 const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
+  const session = driver.session();
   try {
-    const store = getStore('users');
-    
     // Check if user exists before deletion
-    const userData = await store.get(userId);
-    if (!userData) {
+    const fetchQuery = `MATCH (u:User {id: $userId}) RETURN u`;
+    const fetchResult = await session.run(fetchQuery, { userId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'User not found');
     }
-    
-    await store.delete(userId);
+
+    const query = `MATCH (u:User {id: $userId})
+                   DELETE u`;
+    await session.run(query, { userId });
+
     return successResponse(null, 'User deleted successfully');
   } catch (error) {
-    console.error('Error deleting user from Blob Storage:', error);
+    console.error('Error deleting user from Neo4j:', error);
     return errorResponse(500, 'Error deleting user');
+  } finally {
+    await session.close();
   }
 };

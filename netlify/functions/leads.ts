@@ -1,4 +1,5 @@
 import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
+import neo4j from 'neo4j-driver';
 import {
   corsHeaders,
   createResponse,
@@ -11,7 +12,7 @@ import {
   authenticateRequest,
   logRequest,
 } from './utils/api-utils';
-import { getStore } from '@netlify/blobs';
+// Removed blob import
 
 // Lead API Handler
 export const handler = async (
@@ -61,47 +62,57 @@ export const handler = async (
   }
 };
 
+// Initialize Neo4j Driver
+const initNeo4j = () => {
+  const neo4jUri = process.env.NEO4J_URI;
+  if (!neo4jUri) {
+    throw new Error('NEO4J_URI environment variable is not set.');
+  }
+
+  const driver = neo4j.driver(
+    neo4jUri,
+    neo4j.auth.basic(
+      process.env.NEO4J_USERNAME || 'neo4j',
+      process.env.NEO4J_PASSWORD || 'password'
+    )
+  );
+  return driver;
+};
+
+const driver = initNeo4j();
+
 // Get leads (all or specific lead)
 const handleGetLeads = async (leadId?: string | null): Promise<HandlerResponse> => {
-  if (leadId) {
-    try {
-      console.log('Attempting to retrieve lead:', leadId);
-      const store = getStore('leads');
-      const leadData = await store.get(leadId);
-      
-      if (!leadData) {
+  let session = null;
+  try {
+    session = driver.session();
+    if (leadId) {
+      // Get specific lead
+      const query = `MATCH (l:Lead {id: $leadId})
+                     RETURN l`;
+      const result = await session.run(query, { leadId });
+
+      if (result.records.length === 0) {
         return errorResponse(404, 'Lead not found');
       }
-      
-      const lead = JSON.parse(leadData);
+
+      const lead = result.records[0].get('l').properties;
       return successResponse(lead);
-    } catch (error) {
-      console.error('Error getting lead from Blob Storage:', error);
-      return errorResponse(500, 'Error getting lead');
-    }
-  } else {
-    try {
-      // List all leads
-      console.log('Attempting to list all leads');
-      const store = getStore('leads');
-      const { blobs } = await store.list();
-      
-      const leads = [];
-      for (const blob of blobs) {
-        try {
-          const leadData = await store.get(blob.key);
-          if (leadData) {
-            leads.push(JSON.parse(leadData));
-          }
-        } catch (parseError) {
-          console.error(`Error parsing lead ${blob.key}:`, parseError);
-        }
-      }
-      
+    } else {
+      // Get all leads
+      const query = `MATCH (l:Lead)
+                     RETURN l`;
+      const result = await session.run(query);
+
+      const leads = result.records.map(record => record.get('l').properties);
       return successResponse(leads);
-    } catch (error) {
-      console.error('Error listing leads from Blob Storage:', error);
-      return errorResponse(500, 'Error listing leads');
+    }
+  }  catch (error) {
+    console.error('Error getting lead from Neo4j:', error);
+    return errorResponse(500, 'Error getting lead');
+  } finally {
+     if (session) {
+      await session.close();
     }
   }
 };
@@ -109,7 +120,7 @@ const handleGetLeads = async (leadId?: string | null): Promise<HandlerResponse> 
 // Create new lead
 const handleCreateLead = async (event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -137,20 +148,37 @@ const handleCreateLead = async (event: HandlerEvent): Promise<HandlerResponse> =
     createdAt: new Date().toISOString(),
   };
 
+  let session = null;
   try {
-    const store = getStore('leads');
-    await store.set(leadId, JSON.stringify(lead));
+    session = driver.session();
+    const query = `CREATE (l:Lead {
+      id: $leadId,
+      name: $name,
+      email: $email,
+      phone: $phone,
+      company: $company,
+      status: $status,
+      assignedTo: $assignedTo,
+      createdAt: $createdAt
+    })
+    RETURN l`;
+
+    await session.run(query, lead);
     return successResponse(lead, 'Lead created successfully');
   } catch (error) {
-    console.error('Error creating lead in Blob Storage:', error);
+    console.error('Error creating lead in Neo4j:', error);
     return errorResponse(500, 'Error creating lead');
+  } finally {
+   if (session) {
+      await session.close();
+    }
   }
 };
 
 // Update lead
 const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<HandlerResponse> => {
   const body = parseBody(event);
-  
+
   if (!body) {
     return errorResponse(400, 'Request body is required');
   }
@@ -163,15 +191,18 @@ const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<Ha
     }
   }
 
+  let session = null;
   try {
-    const store = getStore('leads');
-    const leadData = await store.get(leadId);
-    
-    if (!leadData) {
+    session = driver.session();
+    // Fetch existing lead
+    const fetchQuery = `MATCH (l:Lead {id: $leadId}) RETURN l`;
+    const fetchResult = await session.run(fetchQuery, { leadId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'Lead not found');
     }
-    
-    const lead = JSON.parse(leadData);
+
+    const lead = fetchResult.records[0].get('l').properties;
 
     // Update fields
     if (body.name) lead.name = body.name;
@@ -180,33 +211,51 @@ const handleUpdateLead = async (leadId: string, event: HandlerEvent): Promise<Ha
     if (body.company !== undefined) lead.company = body.company;
     if (body.status) lead.status = body.status;
     if (body.assignedTo !== undefined) lead.assignedTo = body.assignedTo;
-    
+
     // Add updated timestamp
     lead.updatedAt = new Date().toISOString();
 
-    await store.set(leadId, JSON.stringify(lead));
+    // Update in Neo4j
+    const updateQuery = `MATCH (l:Lead {id: $leadId})
+                       SET l = $lead
+                       RETURN l`;
+
+    await session.run(updateQuery, { leadId, lead });
     return successResponse(lead, 'Lead updated successfully');
-  } catch (error) {
-    console.error('Error updating lead in Blob Storage:', error);
+  }  catch (error) {
+    console.error('Error updating lead in Neo4j:', error);
     return errorResponse(500, 'Error updating lead');
+  } finally {
+     if (session) {
+      await session.close();
+    }
   }
 };
 
 // Delete lead
 const handleDeleteLead = async (leadId: string): Promise<HandlerResponse> => {
+  let session = null;
   try {
-    const store = getStore('leads');
-    
+    session = driver.session();
     // Check if lead exists before deletion
-    const leadData = await store.get(leadId);
-    if (!leadData) {
+    const fetchQuery = `MATCH (l:Lead {id: $leadId}) RETURN l`;
+    const fetchResult = await session.run(fetchQuery, { leadId });
+
+    if (fetchResult.records.length === 0) {
       return errorResponse(404, 'Lead not found');
     }
-    
-    await store.delete(leadId);
+
+    const query = `MATCH (l:Lead {id: $leadId})
+                   DELETE l`;
+    await session.run(query, { leadId });
+
     return successResponse(null, 'Lead deleted successfully');
-  } catch (error) {
-    console.error('Error deleting lead from Blob Storage:', error);
+  }  catch (error) {
+    console.error('Error deleting lead from Neo4j:', error);
     return errorResponse(500, 'Error deleting lead');
+  } finally {
+    if (session) {
+      await session.close();
+    }
   }
 };
