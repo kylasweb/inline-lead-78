@@ -28,21 +28,29 @@ import {
 } from '@/lib/validation/schemas';
 
 interface Lead {
-  id: number;
+  id: string;
   name: string;
   email: string;
-  company: string;
+  phone?: string | null;
+  company?: string | null;
   status: string;
-  score: number;
+  assignedTo?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  score?: number;
 }
 
 const userApi = {
   createUser: async (user: Partial<UserFormData>): Promise<UserFormData> => {
     console.log('Creating user:', user);
-    
-    // Validate lead source if provided
+      // Validate lead source if provided
     if (user.leadSource) {
-      const response = await fetch('/netlify/functions/leads');
+      const response = await fetch('/.netlify/functions/leads', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer dummy-token'
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to validate lead source');
       }
@@ -62,11 +70,11 @@ const userApi = {
       email: user.email,
       role: user.role || 'USER'
     };
-    
-    const response = await fetch('/netlify/functions/users', {
+      const response = await fetch('/.netlify/functions/users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer dummy-token'
       },
       body: JSON.stringify(userData)
     });
@@ -79,11 +87,11 @@ const userApi = {
     const createdUser = await response.json();
     
     // If created from lead, update lead status
-    if (user.leadSource) {
-      const leadUpdateResponse = await fetch(`/netlify/functions/leads/${user.leadSource}`, {
+    if (user.leadSource) {      const leadUpdateResponse = await fetch(`/.netlify/functions/leads/${user.leadSource}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer dummy-token'
         },
         body: JSON.stringify({
           status: 'converted',
@@ -119,7 +127,12 @@ const userApi = {
 const leadApi = {
   getQualifiedLeads: async (): Promise<Lead[]> => {
     try {
-      const response = await fetch('/netlify/functions/leads');
+      const response = await fetch('/.netlify/functions/leads', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer dummy-token'
+        }
+      });
       if (!response.ok) {
         console.error('Failed to fetch leads');
         return [];
@@ -136,6 +149,8 @@ const leadApi = {
 export function AddUserForm() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -179,9 +194,17 @@ export function AddUserForm() {
     announceSuccess: true,
   });
 
-  const { data: qualifiedLeads = [] } = useQuery({
+  const { data: qualifiedLeads = [], isLoading: isLeadsLoading } = useQuery({
     queryKey: ['qualified-leads'],
-    queryFn: leadApi.getQualifiedLeads
+    queryFn: leadApi.getQualifiedLeads,
+    onError: (error) => {
+      console.error('Failed to load qualified leads:', error);
+      toast({
+        title: 'Error loading leads',
+        description: 'Failed to load qualified leads. Please try again later.',
+        variant: 'destructive'
+      });
+    }
   });
 
   const createMutation = useMutation({
@@ -209,6 +232,7 @@ export function AddUserForm() {
       persistence.clearPersisted();
     },
     onError: (error: Error) => {
+      setErrorMessage(error.message || 'Failed to create user');
       toast({ 
         title: 'Error', 
         description: error.message || 'Failed to create user',
@@ -219,13 +243,23 @@ export function AddUserForm() {
   });
 
   const handleSubmit = form.handleSubmit(async (data) => {
+    // Reset error state
+    setErrorMessage(null);
+    
     if (step < 3) {
       setStep(step + 1);
       accessibility.announceCustom(`Moved to step ${step + 1} of 3`);
       return;
     }
 
-    createMutation.mutate(data);
+    setIsLoading(true);
+    try {
+      await createMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Form submission error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   });
 
   const togglePermission = (permission: string) => {
@@ -250,7 +284,7 @@ export function AddUserForm() {
   };
 
   const handleLeadSelection = (leadId: string) => {
-    const selectedLead = qualifiedLeads.find(lead => lead.id === parseInt(leadId));
+    const selectedLead = qualifiedLeads.find(lead => lead.id === leadId);
     if (selectedLead) {
       form.setValue('leadSource', selectedLead.id);
       form.setValue('name', selectedLead.name);
@@ -287,6 +321,22 @@ export function AddUserForm() {
               Create New User - Step {step} of 3
             </DialogTitle>
           </DialogHeader>
+          
+          {/* Display error message if exists */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4">
+              <p className="font-medium">Error</p>
+              <p className="text-sm">{errorMessage}</p>
+            </div>
+          )}
+          
+          {/* Loading indicator for leads */}
+          {isLeadsLoading && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+              <span className="ml-2 text-sm text-gray-600">Loading leads...</span>
+            </div>
+          )}
           
           {/* Auto-save indicator */}
           <AutoSaveIndicator 

@@ -25,6 +25,7 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
     });
 
     if (!response.ok) {
+      console.error(`API request failed: ${response.status} ${response.statusText}`);
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 

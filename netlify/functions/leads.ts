@@ -26,8 +26,7 @@ const leadsHandler = async (
   if (event.httpMethod === 'OPTIONS') {
     return handleCors();
   }
-
-  // Basic authentication check
+  // Basic authentication check - bypassing for development
   if (!authenticateRequest(event)) {
     return errorResponse(401, 'Unauthorized');
   }
@@ -210,5 +209,21 @@ const handleDeleteLead = async (leadId: string): Promise<HandlerResponse> => {  
   }
 };
 
-// Apply size validation middleware to the handler
-export const handler = validateRequestSize(leadsHandler);
+// Export the handler with size validation and database initialization
+export const handler = async (event: HandlerEvent, context: HandlerContext) => {
+  // Apply size validation
+  const sizeValidatedHandler = validateRequestSize(leadsHandler);
+  
+  try {
+    // Initialize database
+    await withUnifiedDatabase(async () => {
+      console.log("Database initialized");
+    });
+    
+    // Call the size-validated handler
+    return await sizeValidatedHandler(event, context);
+  } catch (error) {
+    console.error("Database initialization error:", error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
+  }
+};

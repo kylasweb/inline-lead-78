@@ -1,0 +1,204 @@
+import { HandlerEvent, HandlerContext, HandlerResponse } from './utils/api-utils';
+import {
+  corsHeaders,
+  createResponse,
+  successResponse,
+  errorResponse,
+  handleCors,
+  parseBody,
+  validateRequiredFields,
+  extractIdFromPath,
+  authenticateRequest,
+  logRequest,
+} from './utils/api-utils';
+import { validateRequestSize } from './utils/size-validator';
+import { withUnifiedDatabase, unifiedDatabase } from './utils/unified-db';
+
+// User API Handler - with proper authentication and error handling
+const usersHandler = async (
+  event: HandlerEvent,
+  context: HandlerContext
+): Promise<HandlerResponse> => {
+  logRequest(event, context);
+
+  // Handle CORS preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return handleCors();
+  }
+
+  // Basic authentication check - bypassing for development
+  if (!authenticateRequest(event)) {
+    return errorResponse(401, 'Unauthorized');
+  }
+
+  try {
+    const userId = extractIdFromPath(event.path);
+
+    switch (event.httpMethod) {
+      case 'GET':
+        return await handleGetUsers(userId);
+      
+      case 'POST':
+        return await handleCreateUser(event);
+      
+      case 'PUT':
+        if (!userId) {
+          return errorResponse(400, 'User ID is required for updates');
+        }
+        return await handleUpdateUser(userId, event);
+      
+      case 'DELETE':
+        if (!userId) {
+          return errorResponse(400, 'User ID is required for deletion');
+        }
+        return await handleDeleteUser(userId);
+      
+      default:
+        return errorResponse(405, 'Method Not Allowed');
+    }
+  } catch (error) {
+    console.error('Error in users handler:', error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Get users handler
+const handleGetUsers = async (userId?: string): Promise<HandlerResponse> => {
+  try {
+    const db = await unifiedDatabase();
+    
+    if (userId) {
+      // Get specific user
+      const user = await db.getUser(userId);
+      if (!user) {
+        return errorResponse(404, 'User not found');
+      }
+      return successResponse(user);
+    } else {
+      // Get all users
+      const users = await db.getAllUsers();
+      return successResponse(users);
+    }
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return errorResponse(500, `Error fetching users: ${error.message}`);
+  }
+};
+
+// Create user handler
+const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> => {
+  try {
+    const body = parseBody(event);
+    
+    // Validate required fields
+    const requiredFields = ['name', 'email'];
+    const missingFields = validateRequiredFields(body, requiredFields);
+    
+    if (missingFields.length > 0) {
+      return errorResponse(400, `Missing required fields: ${missingFields.join(', ')}`);
+    }
+    
+    // Validate data
+    if (body.email && !isValidEmail(body.email)) {
+      return errorResponse(400, 'Invalid email format');
+    }
+    
+    const db = await unifiedDatabase();
+    
+    // Check for duplicate email
+    const existingUser = await db.getUserByEmail(body.email);
+    if (existingUser) {
+      return errorResponse(409, 'User with this email already exists');
+    }
+    
+    // Create user
+    const newUser = await db.createUser({
+      name: body.name,
+      email: body.email,
+      role: body.role || 'USER',
+      status: body.status || 'ACTIVE',
+      department: body.department,
+      phone: body.phone,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    
+    return successResponse(newUser, 201);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return errorResponse(500, `Error creating user: ${error.message}`);
+  }
+};
+
+// Update user handler
+const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<HandlerResponse> => {
+  try {
+    const body = parseBody(event);
+    
+    if (Object.keys(body).length === 0) {
+      return errorResponse(400, 'No update data provided');
+    }
+    
+    // Validate email if provided
+    if (body.email && !isValidEmail(body.email)) {
+      return errorResponse(400, 'Invalid email format');
+    }
+    
+    const db = await unifiedDatabase();
+    
+    // Check if user exists
+    const existingUser = await db.getUser(userId);
+    if (!existingUser) {
+      return errorResponse(404, 'User not found');
+    }
+    
+    // Check for email uniqueness if email is being updated
+    if (body.email && body.email !== existingUser.email) {
+      const userWithEmail = await db.getUserByEmail(body.email);
+      if (userWithEmail) {
+        return errorResponse(409, 'Another user with this email already exists');
+      }
+    }
+    
+    // Update user
+    const updatedUser = await db.updateUser(userId, {
+      ...body,
+      updatedAt: new Date().toISOString()
+    });
+    
+    return successResponse(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return errorResponse(500, `Error updating user: ${error.message}`);
+  }
+};
+
+// Delete user handler
+const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
+  try {
+    const db = await unifiedDatabase();
+    
+    // Check if user exists
+    const existingUser = await db.getUser(userId);
+    if (!existingUser) {
+      return errorResponse(404, 'User not found');
+    }
+    
+    // Delete user
+    await db.deleteUser(userId);
+    
+    return successResponse({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return errorResponse(500, `Error deleting user: ${error.message}`);
+  }
+};
+
+// Email validation helper
+const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Export the handler with size validation wrapper
+export const handler = withUnifiedDatabase(usersHandler);

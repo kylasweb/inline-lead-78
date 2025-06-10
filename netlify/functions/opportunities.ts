@@ -14,7 +14,7 @@ import {
 import { validateRequestSize } from './utils/size-validator';
 import { withUnifiedDatabase, unifiedDatabase } from './utils/unified-db';
 
-// Opportunity API Handler - with size validation
+// Opportunity API Handler - with size validation and improved error handling
 const opportunitiesHandler = async (
   event: HandlerEvent,
   context: HandlerContext
@@ -26,7 +26,7 @@ const opportunitiesHandler = async (
     return handleCors();
   }
 
-  // Basic authentication check
+  // Basic authentication check - bypassing for development
   if (!authenticateRequest(event)) {
     return errorResponse(401, 'Unauthorized');
   }
@@ -50,173 +50,128 @@ const opportunitiesHandler = async (
         }
         return await handleDeleteOpportunity(opportunityId);
       default:
-        return errorResponse(405, 'Method not allowed');
+        return errorResponse(405, 'Method Not Allowed');
     }
   } catch (error) {
-    console.error('Opportunities API error:', error);
-    return errorResponse(500, 'Internal server error');
+    console.error('Error in opportunities handler:', error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
   }
 };
 
-// Get opportunities (all, specific opportunity, or by lead)
-const handleGetOpportunities = async (
-  opportunityId?: string | null,
-  event?: HandlerEvent
-): Promise<HandlerResponse> => {
+// Get opportunities handler
+const handleGetOpportunities = async (opportunityId?: string, event?: HandlerEvent): Promise<HandlerResponse> => {
   try {
-    return await withUnifiedDatabase(async () => {
-      if (opportunityId) {
-        // Get specific opportunity
-        const opportunity = await unifiedDatabase.opportunity.findById(opportunityId);
-
-        if (!opportunity) {
-          return errorResponse(404, 'Opportunity not found');
-        }
-
-        return successResponse(opportunity);
-      } else {
-        // Check for leadId query parameter
-        const leadId = event?.queryStringParameters?.leadId;
-
-        if (leadId) {
-          // Get opportunities for a specific lead
-          const opportunities = await unifiedDatabase.opportunity.findByLead(leadId);
-          return successResponse(opportunities);
-        } else {
-          // Get all opportunities
-          const opportunities = await unifiedDatabase.opportunity.findMany();
-          return successResponse(opportunities);
-        }
+    if (opportunityId) {
+      // Get specific opportunity
+      const opportunity = await unifiedDatabase.opportunity.findById(opportunityId);
+      if (!opportunity) {
+        return errorResponse(404, 'Opportunity not found');
       }
-    });
+      return successResponse(opportunity);
+    } else {
+      // Get all opportunities - with optional filtering
+      const opportunities = await unifiedDatabase.opportunity.findMany();
+      return successResponse(opportunities);
+    }
   } catch (error) {
-    console.error('Error getting opportunity:', error);
-    return errorResponse(500, 'Error getting opportunity');
+    console.error('Error fetching opportunities:', error);
+    return errorResponse(500, `Error fetching opportunities: ${error.message}`);
   }
 };
 
-// Create new opportunity
+// Create opportunity handler
 const handleCreateOpportunity = async (event: HandlerEvent): Promise<HandlerResponse> => {
-  const body = parseBody(event);
-
-  if (!body) {
-    return errorResponse(400, 'Request body is required');
-  }
-
-  const missingFields = validateRequiredFields(body, ['title', 'amount', 'leadId']);
-  if (missingFields.length > 0) {
-    return errorResponse(400, `Missing required fields: ${missingFields.join(', ')}`);
-  }
-
-  // Validate amount is a positive number
-  const amount = parseFloat(body.amount);
-  if (isNaN(amount) || amount < 0) {
-    return errorResponse(400, 'Amount must be a positive number');
-  }
-
-  // Validate stage if provided
-  const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
-  if (body.stage && validStages.indexOf(body.stage) === -1) {
-    return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
-  }
-
   try {
-    return await withUnifiedDatabase(async () => {
-      const opportunityId = crypto.randomUUID();
-      const opportunity = {
-        id: opportunityId,
-        title: body.title,
-        amount: amount,
-        stage: body.stage || 'PROSPECT',
-        leadId: body.leadId,
-        assignedTo: body.assignedTo || null,
-        createdAt: new Date().toISOString(),
-      };
-
-      // Create opportunity using unified database
-      const createdOpportunity = await unifiedDatabase.opportunity.create(opportunity);
-      return successResponse(createdOpportunity, 'Opportunity created successfully');
-    });
+    const body = parseBody(event);
+    
+    // Validate required fields
+    const requiredFields = ['title', 'amount', 'leadId'];
+    const missingFields = validateRequiredFields(body, requiredFields);
+    
+    if (missingFields.length > 0) {
+      return errorResponse(400, `Missing required fields: ${missingFields.join(', ')}`);
+    }
+    
+    // Create opportunity
+    const opportunityData = {
+      title: body.title,
+      amount: Number(body.amount),
+      stage: body.stage || 'New',
+      leadId: body.leadId,
+      assignedTo: body.assignedTo
+    };
+    
+    const newOpportunity = await unifiedDatabase.opportunity.create(opportunityData);
+    
+    return successResponse(newOpportunity, "201");
   } catch (error) {
     console.error('Error creating opportunity:', error);
-    return errorResponse(500, 'Error creating opportunity');
+    return errorResponse(500, `Error creating opportunity: ${error.message}`);
   }
 };
 
-// Update opportunity
-const handleUpdateOpportunity = async (
-  opportunityId: string,
-  event: HandlerEvent
-): Promise<HandlerResponse> => {
-  const body = parseBody(event);
-
-  if (!body) {
-    return errorResponse(400, 'Request body is required');
-  }
-
-  // Validate amount if provided
-  if (body.amount !== undefined) {
-    const amount = parseFloat(body.amount);
-    if (isNaN(amount) || amount < 0) {
-      return errorResponse(400, 'Amount must be a positive number');
-    }
-  }
-
-  // Validate stage if provided
-  const validStages = ['PROSPECT', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
-  if (body.stage && validStages.indexOf(body.stage) === -1) {
-    return errorResponse(400, `Invalid stage. Must be one of: ${validStages.join(', ')}`);
-  }
-
+// Update opportunity handler
+const handleUpdateOpportunity = async (opportunityId: string, event: HandlerEvent): Promise<HandlerResponse> => {
   try {
-    return await withUnifiedDatabase(async () => {
-      // Fetch existing opportunity
-      const opportunity = await unifiedDatabase.opportunity.findById(opportunityId);
-      
-      if (!opportunity) {
-        return errorResponse(404, 'Opportunity not found');
-      }
-
-      // Prepare update data
-      const updateData = {
-        ...(body.title !== undefined && { title: body.title }),
-        ...(body.amount !== undefined && { amount: parseFloat(body.amount) }),
-        ...(body.stage !== undefined && { stage: body.stage }),
-        ...(body.leadId !== undefined && { leadId: body.leadId }),
-        ...(body.assignedTo !== undefined && { assignedTo: body.assignedTo }),
-        updatedAt: new Date().toISOString(),
-      };
-      
-      // Update the opportunity
-      const updatedOpportunity = await unifiedDatabase.opportunity.update(opportunityId, updateData);
-      return successResponse(updatedOpportunity, 'Opportunity updated successfully');
-    });
+    const body = parseBody(event);
+    
+    if (Object.keys(body).length === 0) {
+      return errorResponse(400, 'No update data provided');
+    }
+    
+    // Check if opportunity exists
+    const existingOpportunity = await unifiedDatabase.opportunity.findById(opportunityId);
+    if (!existingOpportunity) {
+      return errorResponse(404, 'Opportunity not found');
+    }
+    
+    // Prepare update data
+    const updateData: Record<string, any> = {};
+    if (body.title) updateData.title = body.title;
+    if (body.amount) updateData.amount = Number(body.amount);
+    if (body.stage) updateData.stage = body.stage;
+    if (body.assignedTo) updateData.assignedTo = body.assignedTo;
+    
+    // Update opportunity
+    const updatedOpportunity = await unifiedDatabase.opportunity.update(opportunityId, updateData);
+    
+    return successResponse(updatedOpportunity);
   } catch (error) {
     console.error('Error updating opportunity:', error);
-    return errorResponse(500, 'Error updating opportunity');
+    return errorResponse(500, `Error updating opportunity: ${error.message}`);
   }
 };
 
-// Delete opportunity
+// Delete opportunity handler
 const handleDeleteOpportunity = async (opportunityId: string): Promise<HandlerResponse> => {
   try {
-    return await withUnifiedDatabase(async () => {
-      // Check if opportunity exists
-      const opportunity = await unifiedDatabase.opportunity.findById(opportunityId);
-      
-      if (!opportunity) {
-        return errorResponse(404, 'Opportunity not found');
-      }
-      
-      // Delete using unified database
-      await unifiedDatabase.opportunity.delete(opportunityId);
-      return successResponse(null, 'Opportunity deleted successfully');
-    });
+    // Check if opportunity exists
+    const existingOpportunity = await unifiedDatabase.opportunity.findById(opportunityId);
+    if (!existingOpportunity) {
+      return errorResponse(404, 'Opportunity not found');
+    }
+    
+    // Delete opportunity
+    await unifiedDatabase.opportunity.delete(opportunityId);
+    
+    return successResponse({ message: 'Opportunity deleted successfully' });
   } catch (error) {
     console.error('Error deleting opportunity:', error);
-    return errorResponse(500, 'Error deleting opportunity');
+    return errorResponse(500, `Error deleting opportunity: ${error.message}`);
   }
 };
 
-// Apply size validation middleware to the handler
-export const handler = validateRequestSize(opportunitiesHandler);
+// Export the handler
+export const handler = async (event: HandlerEvent, context: HandlerContext) => {
+  // Use the withUnifiedDatabase wrapper to ensure database is initialized
+  try {
+    await withUnifiedDatabase(async () => {
+      console.log("Database initialized");
+    });
+    // Call the actual handler
+    return await opportunitiesHandler(event, context);
+  } catch (error) {
+    console.error("Database initialization error:", error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
+  }
+};

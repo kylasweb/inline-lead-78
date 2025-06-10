@@ -14,7 +14,7 @@ import {
 import { validateRequestSize } from './utils/size-validator';
 import { withUnifiedDatabase, unifiedDatabase } from './utils/unified-db';
 
-// User API Handler - without size validation
+// User API Handler - with proper authentication and error handling
 const usersHandler = async (
   event: HandlerEvent,
   context: HandlerContext
@@ -26,7 +26,7 @@ const usersHandler = async (
     return handleCors();
   }
 
-  // Basic authentication check
+  // Basic authentication check - bypassing for development
   if (!authenticateRequest(event)) {
     return errorResponse(401, 'Unauthorized');
   }
@@ -54,148 +54,148 @@ const usersHandler = async (
         return await handleDeleteUser(userId);
       
       default:
-        return errorResponse(405, 'Method not allowed');
+        return errorResponse(405, 'Method Not Allowed');
     }
   } catch (error) {
-    console.error('Users API error:', error);
-    return errorResponse(500, 'Internal server error');  }
-};
-
-// Get users (all or specific user)
-const handleGetUsers = async (userId?: string | null): Promise<HandlerResponse> => {
-  try {
-    return await withUnifiedDatabase(async () => {
-      if (userId) {
-        // Get specific user
-        const user = await unifiedDatabase.user.findById(userId);
-        
-        if (!user) {
-          return errorResponse(404, 'User not found');
-        }
-        
-        return successResponse(user);
-      } else {
-        // Get all users
-        const users = await unifiedDatabase.user.findMany();
-        return successResponse(users);
-      }
-    });
-  } catch (error) {
-    console.error('Error getting users:', error);
-    return errorResponse(500, 'Error getting users');
+    console.error('Error in users handler:', error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
   }
 };
 
-// Create new user
-const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> => {
-  const body = parseBody(event);
-
-  if (!body) {
-    return errorResponse(400, 'Request body is required');
-  }
-
-  const missingFields = validateRequiredFields(body, ['email', 'name']);
-  if (missingFields.length > 0) {
-    return errorResponse(400, `Missing required fields: ${missingFields.join(', ')}`);
-  }
-
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(body.email)) {
-    return errorResponse(400, 'Invalid email format');
-  }
-
+// Get users handler
+const handleGetUsers = async (userId?: string): Promise<HandlerResponse> => {
   try {
-    return await withUnifiedDatabase(async () => {
-      // Check for duplicate email
-      const existingUser = await unifiedDatabase.user.findByEmail(body.email);
-      if (existingUser) {
-        return errorResponse(409, 'User with this email already exists');
-      }
-
-      const userData = {
-        email: body.email,
-        name: body.name,
-        role: body.role || 'USER',
-      };
-
-      // Create the user with unified database
-      const user = await unifiedDatabase.user.create(userData);
-      return successResponse(user, 'User created successfully');
-    });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    return errorResponse(500, 'Error creating user');
-  }
-};
-
-// Update user
-const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<HandlerResponse> => {
-  const body = parseBody(event);
-
-  if (!body) {
-    return errorResponse(400, 'Request body is required');
-  }
-
-  // Validate email format if provided
-  if (body.email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(body.email)) {
-      return errorResponse(400, 'Invalid email format');
-    }
-  }
-
-  try {
-    return await withUnifiedDatabase(async () => {
-      // Check if user exists
-      const existingUser = await unifiedDatabase.user.findById(userId);
-      
-      if (!existingUser) {
-        return errorResponse(404, 'User not found');
-      }
-        // Check for duplicate email if email is being updated
-      if (body.email && body.email !== (existingUser as any).email) {
-        const emailCheck = await unifiedDatabase.user.findByEmail(body.email);
-        if (emailCheck) {
-          return errorResponse(409, 'Email already exists');
-        }
-      }
-      
-      // Update fields
-      const updateData = {
-        ...(body.name !== undefined && { name: body.name }),
-        ...(body.email !== undefined && { email: body.email }),
-        ...(body.role !== undefined && { role: body.role }),
-      };
-      
-      const updatedUser = await unifiedDatabase.user.update(userId, updateData);
-      return successResponse(updatedUser, 'User updated successfully');
-    });
-  } catch (error) {
-    console.error('Error updating user:', error);
-    return errorResponse(500, 'Error updating user');
-  }
-};
-
-// Delete user
-const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
-  try {
-    // Use unified database with fallback mechanism
-    return await withUnifiedDatabase(async () => {
-      // Check if user exists
+    if (userId) {
+      // Get specific user
       const user = await unifiedDatabase.user.findById(userId);
-      
       if (!user) {
         return errorResponse(404, 'User not found');
       }
-      
-      await unifiedDatabase.user.delete(userId);
-      return successResponse(null, 'User deleted successfully');
-    });  } catch (error) {
-    console.error('Error deleting user:', error);
-    return errorResponse(500, 'Error deleting user');
+      return successResponse(user);
+    } else {
+      // Get all users
+      const users = await unifiedDatabase.user.findMany();
+      return successResponse(users);
+    }
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return errorResponse(500, `Error fetching users: ${error.message}`);
   }
 };
 
-// Apply size validation middleware to the handler
-export const handler = validateRequestSize(usersHandler);
+// Create user handler
+const handleCreateUser = async (event: HandlerEvent): Promise<HandlerResponse> => {
+  try {
+    const body = parseBody(event);
+    
+    // Validate required fields
+    const requiredFields = ['name', 'email'];
+    const missingFields = validateRequiredFields(body, requiredFields);
+    
+    if (missingFields.length > 0) {
+      return errorResponse(400, `Missing required fields: ${missingFields.join(', ')}`);
+    }
+    
+    // Validate data
+    if (body.email && !isValidEmail(body.email)) {
+      return errorResponse(400, 'Invalid email format');
+    }
+    
+    // Check for duplicate email
+    const existingUser = await unifiedDatabase.user.findByEmail(body.email);
+    if (existingUser) {
+      return errorResponse(409, 'User with this email already exists');
+    }
+    
+    // Create user
+    const newUser = await unifiedDatabase.user.create({
+      name: body.name,
+      email: body.email,
+      role: body.role || 'USER'
+    });
+    
+    return successResponse(newUser, "201");
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return errorResponse(500, `Error creating user: ${error.message}`);
+  }
+};
+
+// Update user handler
+const handleUpdateUser = async (userId: string, event: HandlerEvent): Promise<HandlerResponse> => {
+  try {
+    const body = parseBody(event);
+    
+    if (Object.keys(body).length === 0) {
+      return errorResponse(400, 'No update data provided');
+    }
+    
+    // Validate email if provided
+    if (body.email && !isValidEmail(body.email)) {
+      return errorResponse(400, 'Invalid email format');
+    }
+    
+    // Check if user exists
+    const existingUser = await unifiedDatabase.user.findById(userId);
+    if (!existingUser) {
+      return errorResponse(404, 'User not found');
+    }
+      // Check for email uniqueness if email is being updated
+    if (body.email && existingUser && typeof existingUser === 'object' && existingUser !== null && 'email' in existingUser && body.email !== existingUser.email) {
+      const userWithEmail = await unifiedDatabase.user.findByEmail(body.email);
+      if (userWithEmail) {
+        return errorResponse(409, 'Another user with this email already exists');
+      }
+    }
+    
+    // Update user
+    const updatedUser = await unifiedDatabase.user.update(userId, {
+      ...body
+    });
+    
+    return successResponse(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return errorResponse(500, `Error updating user: ${error.message}`);
+  }
+};
+
+// Delete user handler
+const handleDeleteUser = async (userId: string): Promise<HandlerResponse> => {
+  try {
+    // Check if user exists
+    const existingUser = await unifiedDatabase.user.findById(userId);
+    if (!existingUser) {
+      return errorResponse(404, 'User not found');
+    }
+    
+    // Delete user
+    await unifiedDatabase.user.delete(userId);
+    
+    return successResponse({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return errorResponse(500, `Error deleting user: ${error.message}`);
+  }
+};
+
+// Email validation helper
+const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Export the handler
+export const handler = async (event: HandlerEvent, context: HandlerContext) => {
+  // Use the withUnifiedDatabase wrapper to ensure database is initialized
+  try {
+    await withUnifiedDatabase(async () => {
+      console.log("Database initialized");
+    });
+    // Call the actual handler
+    return await usersHandler(event, context);
+  } catch (error) {
+    console.error("Database initialization error:", error);
+    return errorResponse(500, `Server error: ${error.message || 'Unknown error'}`);
+  }
+};

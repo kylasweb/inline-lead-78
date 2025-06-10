@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -23,168 +22,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-
-interface Staff {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  hireDate: string;
-  status: 'active' | 'inactive' | 'on-leave';
-  performance: number;
-  trainingsCompleted: number;
-  location: string;
-}
-
-// Real API functions
-const staffApi = {
-  getAll: async (): Promise<Staff[]> => {
-    try {
-      const response = await fetch('/netlify/functions/staff');
-      if (!response.ok) {
-        throw new Error('Failed to fetch staff');
-      }
-      const staff = await response.json();
-      
-      // Transform API staff to match our interface
-      return staff.map((member: any) => ({
-        id: member.id,
-        firstName: member.name.split(' ')[0] || '',
-        lastName: member.name.split(' ').slice(1).join(' ') || '',
-        email: member.email,
-        phone: member.phone || '',
-        department: member.department || '',
-        position: member.role || '',
-        hireDate: member.createdAt?.split('T')[0] || '',
-        status: member.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
-        performance: 0, // Default values for client-side fields
-        trainingsCompleted: 0,
-        location: ''
-      }));
-    } catch (error) {
-      console.error('Error fetching staff:', error);
-      return [];
-    }
-  },
-  
-  create: async (data: Omit<Staff, 'id'>): Promise<Staff> => {
-    try {
-      const staffData = {
-        name: `${data.firstName} ${data.lastName}`,
-        email: data.email,
-        role: data.position,
-        department: data.department,
-        phone: data.phone,
-        status: data.status.toUpperCase()
-      };
-      
-      const response = await fetch('/netlify/functions/staff', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(staffData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create staff member');
-      }
-
-      const createdStaff = await response.json();
-      
-      return {
-        id: createdStaff.id,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: createdStaff.email,
-        phone: createdStaff.phone || '',
-        department: createdStaff.department || '',
-        position: createdStaff.role || '',
-        hireDate: createdStaff.createdAt?.split('T')[0] || '',
-        status: data.status,
-        performance: data.performance,
-        trainingsCompleted: data.trainingsCompleted,
-        location: data.location
-      };
-    } catch (error) {
-      console.error('Error creating staff:', error);
-      throw error;
-    }
-  },
-  
-  update: async (id: string, data: Partial<Staff>): Promise<Staff> => {
-    try {
-      const updateData: any = {};
-      if (data.firstName || data.lastName) {
-        updateData.name = `${data.firstName || ''} ${data.lastName || ''}`.trim();
-      }
-      if (data.email) updateData.email = data.email;
-      if (data.position) updateData.role = data.position;
-      if (data.department) updateData.department = data.department;
-      if (data.phone) updateData.phone = data.phone;
-      if (data.status) updateData.status = data.status.toUpperCase();
-      
-      const response = await fetch(`/netlify/functions/staff/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update staff member');
-      }
-
-      const updatedStaff = await response.json();
-      
-      return {
-        id: updatedStaff.id,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        email: updatedStaff.email,
-        phone: updatedStaff.phone || '',
-        department: updatedStaff.department || '',
-        position: updatedStaff.role || '',
-        hireDate: data.hireDate || '',
-        status: data.status || 'active',
-        performance: data.performance || 0,
-        trainingsCompleted: data.trainingsCompleted || 0,
-        location: data.location || ''
-      };
-    } catch (error) {
-      console.error('Error updating staff:', error);
-      throw error;
-    }
-  },
-  
-  delete: async (id: string): Promise<void> => {
-    try {
-      const response = await fetch(`/netlify/functions/staff/${id}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete staff member');
-      }
-    } catch (error) {
-      console.error('Error deleting staff:', error);
-      throw error;
-    }
-  }
-};
+import { Staff, fetchAllStaff, createStaffMember, updateStaffMember, deleteStaffMember } from '@/lib/staff-api';
 
 export function StaffManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<Staff, 'id'>>({
     firstName: '',
     lastName: '',
@@ -202,36 +47,59 @@ export function StaffManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: staff = [], isLoading } = useQuery({
+  const { data: staff = [], isLoading, error: staffError } = useQuery({
     queryKey: ['staff'],
-    queryFn: staffApi.getAll
+    queryFn: fetchAllStaff
   });
 
   const createMutation = useMutation({
-    mutationFn: staffApi.create,
+    mutationFn: createStaffMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff'] });
       setIsCreateDialogOpen(false);
       resetForm();
       toast({ title: 'Success', description: 'Staff member created successfully' });
+    },
+    onError: (error: Error) => {
+      setErrorMessage(error.message || 'Failed to create staff member');
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create staff member',
+        variant: 'destructive'
+      });
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Staff> }) => staffApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<Staff> }) => updateStaffMember(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff'] });
       setEditingStaff(null);
       resetForm();
       toast({ title: 'Success', description: 'Staff member updated successfully' });
+    },
+    onError: (error: Error) => {
+      setErrorMessage(error.message || 'Failed to update staff member');
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to update staff member',
+        variant: 'destructive'
+      });
     }
   });
 
   const deleteMutation = useMutation({
-    mutationFn: staffApi.delete,
+    mutationFn: deleteStaffMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff'] });
       toast({ title: 'Success', description: 'Staff member deleted successfully' });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to delete staff member',
+        variant: 'destructive'
+      });
     }
   });
 
@@ -286,6 +154,7 @@ export function StaffManagement() {
           if (!open) {
             setEditingStaff(null);
             resetForm();
+            setErrorMessage(null);
           }
         }}>
           <DialogTrigger asChild>
@@ -298,6 +167,16 @@ export function StaffManagement() {
             <DialogHeader>
               <DialogTitle>{editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}</DialogTitle>
             </DialogHeader>
+            
+            {/* Display error message if exists */}
+            {errorMessage && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4">
+                <p className="font-medium">Error</p>
+                <p className="text-sm">{errorMessage}</p>
+              </div>
+            )}
+            
+            {/* Form content */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -436,8 +315,18 @@ export function StaffManagement() {
                 }}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white">
-                  {editingStaff ? 'Update' : 'Create'}
+                <Button 
+                  type="submit" 
+                  className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue text-white"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {(createMutation.isPending || updateMutation.isPending) ? 
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      {editingStaff ? 'Updating...' : 'Creating...'}
+                    </div> : 
+                    editingStaff ? 'Update' : 'Create'
+                  }
                 </Button>
               </div>
             </form>
@@ -472,84 +361,115 @@ export function StaffManagement() {
         </div>
       </div>
 
-      {/* Staff Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredStaff.map((member) => (
-          <Card key={member.id} className="neomorphism-card hover:shadow-neomorphism-lg transition-all duration-300">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg text-gray-800">
-                    {member.firstName} {member.lastName}
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">{member.position}</p>
-                </div>
-                <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
-                  {member.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail className="w-4 h-4" />
-                  {member.email}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="w-4 h-4" />
-                  {member.phone}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4" />
-                  {member.location}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="w-4 h-4" />
-                  Hired: {new Date(member.hireDate).toLocaleDateString()}
-                </div>
-              </div>
-              
-              <div className="pt-3 border-t border-gray-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-600">Performance</span>
-                  <span className="text-sm font-medium">{member.performance}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue h-2 rounded-full"
-                    style={{ width: `${member.performance}%` }}
-                  ></div>
-                </div>
-              </div>
+      {/* Error state */}
+      {staffError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-lg text-center">
+          <p className="font-medium text-lg mb-2">Failed to load staff data</p>
+          <p className="text-sm">{staffError instanceof Error ? staffError.message : 'Please try again later'}</p>
+          <Button 
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['staff'] })}
+            variant="outline" 
+            className="mt-4"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+      
+      {/* Loading state */}
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="mt-4 text-gray-600">Loading staff data...</p>
+        </div>
+      )}
 
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1">
-                  <Award className="w-4 h-4 text-neomorphism-blue" />
-                  <span>{member.trainingsCompleted} trainings</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => startEdit(member)}
-                    className="neomorphism-button"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => deleteMutation.mutate(member.id)}
-                    className="neomorphism-button text-neomorphism-red"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Staff Grid */}
+      {!isLoading && !staffError && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredStaff.length === 0 ? (
+            <div className="col-span-3 p-8 text-center bg-gray-50 rounded-xl">
+              <p className="text-gray-500">No staff members found matching your criteria</p>
+            </div>
+          ) : (
+            filteredStaff.map((member) => (
+              <Card key={member.id} className="neomorphism-card hover:shadow-neomorphism-lg transition-all duration-300">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg text-gray-800">
+                        {member.firstName} {member.lastName}
+                      </CardTitle>
+                      <p className="text-sm text-gray-600">{member.position}</p>
+                    </div>
+                    <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+                      {member.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Mail className="w-4 h-4" />
+                      {member.email}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Phone className="w-4 h-4" />
+                      {member.phone}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <MapPin className="w-4 h-4" />
+                      {member.location}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Calendar className="w-4 h-4" />
+                      Hired: {new Date(member.hireDate).toLocaleDateString()}
+                    </div>
+                  </div>
+                  
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-gray-600">Performance</span>
+                      <span className="text-sm font-medium">{member.performance}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-neomorphism-violet to-neomorphism-blue h-2 rounded-full"
+                        style={{ width: `${member.performance}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-1">
+                      <Award className="w-4 h-4 text-neomorphism-blue" />
+                      <span>{member.trainingsCompleted} trainings</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startEdit(member)}
+                        className="neomorphism-button"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => deleteMutation.mutate(member.id)}
+                        className="neomorphism-button text-neomorphism-red"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
 
       {isLoading && (
         <div className="text-center py-8">

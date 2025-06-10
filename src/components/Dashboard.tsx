@@ -13,7 +13,6 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  analyticsApi, 
   shouldUseMockData, 
   mockAnalyticsData, 
   mockSalesData, 
@@ -21,6 +20,7 @@ import {
   mockRecentActivities,
   transformAnalyticsToChartData 
 } from '@/lib/api-utils';
+import { fetchAnalyticsData } from '@/lib/dashboard-api';
 import { AnalyticsResponse, SalesChartData, PipelineChartData, ActivityData } from '@/types/api';
 
 interface DashboardState {
@@ -40,9 +40,7 @@ export function Dashboard() {
     recentActivities: [],
     loading: true,
     error: null
-  });
-
-  useEffect(() => {
+  });  useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }));
@@ -59,9 +57,12 @@ export function Dashboard() {
             error: null
           });
         } else {
-          // Fetch real data from API
+          // Fetch real data from API using our enhanced dashboard API utilities
           console.log("Fetching real analytics data...");
-          const analytics = await analyticsApi.getAnalytics();
+          
+          // Use the specialized analytics data fetcher that handles all edge cases
+          const analytics = await fetchAnalyticsData();
+          
           console.log("Analytics data fetched:", analytics);
           const { salesData, pipelineData } = transformAnalyticsToChartData(analytics);
           

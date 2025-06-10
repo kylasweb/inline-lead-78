@@ -32,100 +32,14 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-
-interface AnalyticsData {
-  overview: {
-    totalRevenue: number;
-    revenueChange: number;
-    totalLeads: number;
-    leadsChange: number;
-    conversionRate: number;
-    conversionChange: number;
-    totalOpportunities: number;
-    opportunitiesChange: number;
-  };
-  salesTrend: Array<{
-    month: string;
-    revenue: number;
-    opportunities: number;
-    leads: number;
-  }>;
-  leadSources: Array<{
-    source: string;
-    count: number;
-    color: string;
-  }>;
-  departmentPerformance: Array<{
-    department: string;
-    revenue: number;
-    deals: number;
-    performance: number;
-  }>;
-  topPerformers: Array<{
-    name: string;
-    revenue: number;
-    deals: number;
-    performance: number;
-  }>;
-}
-
-// Mock API function - replace with real endpoint
-const analyticsApi = {
-  getData: async (timeframe: string): Promise<AnalyticsData> => {
-    // Replace with: const response = await fetch(`/api/analytics?timeframe=${timeframe}`);
-    return {
-      overview: {
-        totalRevenue: 1250000,
-        revenueChange: 12.5,
-        totalLeads: 2847,
-        leadsChange: -3.2,
-        conversionRate: 23.4,
-        conversionChange: 5.1,
-        totalOpportunities: 145,
-        opportunitiesChange: 8.7
-      },
-      salesTrend: [
-        { month: 'Jan', revenue: 85000, opportunities: 12, leads: 245 },
-        { month: 'Feb', revenue: 92000, opportunities: 15, leads: 267 },
-        { month: 'Mar', revenue: 78000, opportunities: 11, leads: 234 },
-        { month: 'Apr', revenue: 105000, opportunities: 18, leads: 289 },
-        { month: 'May', revenue: 118000, opportunities: 22, leads: 312 },
-        { month: 'Jun', revenue: 134000, opportunities: 25, leads: 298 },
-        { month: 'Jul', revenue: 125000, opportunities: 21, leads: 276 },
-        { month: 'Aug', revenue: 142000, opportunities: 28, leads: 334 },
-        { month: 'Sep', revenue: 158000, opportunities: 32, leads: 356 },
-        { month: 'Oct', revenue: 171000, opportunities: 35, leads: 389 },
-        { month: 'Nov', revenue: 186000, opportunities: 38, leads: 412 },
-        { month: 'Dec', revenue: 195000, opportunities: 42, leads: 445 }
-      ],
-      leadSources: [
-        { source: 'Website', count: 1124, color: '#8b5cf6' },
-        { source: 'Social Media', count: 892, color: '#3b82f6' },
-        { source: 'Email Campaign', count: 567, color: '#ef4444' },
-        { source: 'Referrals', count: 264, color: '#10b981' }
-      ],
-      departmentPerformance: [
-        { department: 'Sales', revenue: 650000, deals: 87, performance: 95 },
-        { department: 'Marketing', revenue: 420000, deals: 45, performance: 88 },
-        { department: 'Customer Success', revenue: 180000, deals: 13, performance: 92 }
-      ],
-      topPerformers: [
-        { name: 'Sarah Johnson', revenue: 285000, deals: 23, performance: 98 },
-        { name: 'Mike Chen', revenue: 267000, deals: 19, performance: 96 },
-        { name: 'Emma Wilson', revenue: 245000, deals: 21, performance: 94 },
-        { name: 'David Brown', revenue: 198000, deals: 16, performance: 91 },
-        { name: 'Lisa Garcia', revenue: 176000, deals: 14, performance: 89 }
-      ]
-    };
-  }
-};
+import { fetchAnalyticsData } from '@/lib/analytics-api';
 
 export function Analytics() {
   const [timeframe, setTimeframe] = useState('12months');
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['analytics', timeframe],
-    queryFn: () => analyticsApi.getData(timeframe)
+    queryFn: () => fetchAnalyticsData(timeframe)
   });
 
   if (isLoading || !analytics) {

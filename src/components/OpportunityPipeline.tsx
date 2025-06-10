@@ -16,28 +16,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import {
-  opportunitiesApi,
-  shouldUseMockData,
-  mockOpportunities,
-  transformOpportunitiesToLocalFormat
-} from '@/lib/api-utils';
-import { ApiOpportunity } from '@/types/api';
+import { isDevelopment } from '@/lib/safer-api-utils';
+import { fetchOpportunities, Opportunity as OpportunityType } from '@/lib/opportunities-api';
 import { AddOpportunityForm } from './AddOpportunityForm';
 import { AddOpportunityFormAdvanced } from './AddOpportunityFormAdvanced';
 
-interface Opportunity {
-  id: number;
-  title: string;
-  company: string;
-  contact: string;
-  value: number;
-  stage: 'qualified' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost';
-  probability: number;
-  expectedCloseDate: string;
-  lastActivity: string;
-  description: string;
-}
+// Use this local type only if needed for backwards compatibility
+type Opportunity = OpportunityType;
 
 interface OpportunityPipelineState {
   opportunities: Opportunity[];
@@ -62,32 +47,19 @@ export function OpportunityPipeline() {
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [isAdvancedMode, setIsAdvancedMode] = useState<boolean>(false);
   const [showFormSelector, setShowFormSelector] = useState<boolean>(false);
-
   useEffect(() => {
-    const fetchOpportunities = async () => {
+    const loadOpportunities = async () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }));
-  
-        if (shouldUseMockData()) {
-          // Use mock data
-          const transformedMockData = transformOpportunitiesToLocalFormat(mockOpportunities);
-          setState({
-            opportunities: transformedMockData,
-            loading: false,
-            error: null
-          });
-        } else {
-          // Fetch real data from API
-          console.log("Fetching real opportunities data...");
-          const apiOpportunities = await opportunitiesApi.getOpportunities();
-          console.log("Opportunities data fetched:", apiOpportunities);
-          const transformedData = transformOpportunitiesToLocalFormat(apiOpportunities);
-          setState({
-            opportunities: transformedData,
-            loading: false,
-            error: null
-          });
-        }
+        
+        // Using our enhanced API utility that handles both production and development
+        const opportunities = await fetchOpportunities();
+        
+        setState({
+          opportunities,
+          loading: false,
+          error: null
+        });
       } catch (error) {
         console.error('Failed to fetch opportunities:', error);
         setState(prev => ({
@@ -98,32 +70,21 @@ export function OpportunityPipeline() {
       }
     };
   
-    fetchOpportunities();
+    loadOpportunities();
   }, []);
-  
-  // Refresh callback for forms
-  const handleOpportunityCreated = () => {
-    const fetchData = async () => {
-      try {
-        if (shouldUseMockData()) {
-          const transformedMockData = transformOpportunitiesToLocalFormat(mockOpportunities);
-          setState(prev => ({
-            ...prev,
-            opportunities: transformedMockData
-          }));
-        } else {
-          const apiOpportunities = await opportunitiesApi.getOpportunities();
-          const transformedData = transformOpportunitiesToLocalFormat(apiOpportunities);
-          setState(prev => ({
-            ...prev,
-            opportunities: transformedData
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to refresh opportunities:', error);
-      }
-    };
-    fetchData();
+    // Refresh callback for forms
+  const handleOpportunityCreated = async () => {
+    try {
+      // Using our enhanced API utility for both environments
+      const opportunities = await fetchOpportunities();
+      
+      setState(prev => ({
+        ...prev,
+        opportunities
+      }));
+    } catch (error) {
+      console.error('Failed to refresh opportunities:', error);
+    }
   };
 
   const stages = Object.keys(stageConfig) as Array<keyof typeof stageConfig>;
